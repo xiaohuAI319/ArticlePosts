@@ -6,6 +6,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('app-version'),
   getPlatform: () => ipcRenderer.invoke('platform'),
 
+  // 配置相关API
+  config: {
+    // 获取配置值
+    get: (key) => ipcRenderer.invoke('config:get', key)
+  },
+
   // 数据库相关API
   database: {
     // 获取数据库统计信息

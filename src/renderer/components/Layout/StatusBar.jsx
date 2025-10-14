@@ -13,8 +13,12 @@ const { Footer } = Layout;
 
 function StatusBar() {
   const { currentArticle, articles } = useSelector(state => state.articles);
-  const { tasks, publishing } = useSelector(state => state.publish);
+  // const { tasks, publishing } = useSelector(state => state.publish); // 暂时注释掉
   const { platforms } = useSelector(state => state.platforms);
+
+  // 临时设置默认值
+  const tasks = [];
+  const publishing = false;
 
   // 统计信息
   const stats = {

@@ -58,20 +58,19 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // 设置CSP安全策略
-  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    // 在开发环境中允许内联脚本，生产环境中使用更严格的策略
-    const cspPolicy = isDev
-      ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: http: https:;"
-      : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: http: https:;";
+  // 开发环境禁用CSP，避免阻止资源加载
+  if (!isDev) {
+    mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      const cspPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: http: https:;";
 
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [cspPolicy]
-      }
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [cspPolicy]
+        }
+      });
     });
-  });
+  }
 
   // 处理窗口状态
   mainWindow.webContents.on('did-fail-load', () => {
@@ -203,6 +202,31 @@ ipcMain.handle('app-version', () => {
 
 ipcMain.handle('platform', () => {
   return process.platform;
+});
+
+// 配置相关的IPC处理
+ipcMain.handle('config:get', async (event, key) => {
+  try {
+    const fs = require('fs').promises;
+    const path = require('path');
+    const configPath = path.join(__dirname, '../../config.json');
+
+    // 读取配置文件
+    const configData = await fs.readFile(configPath, 'utf8');
+    const config = JSON.parse(configData);
+
+    // 支持嵌套键访问，如 "tinymce.apiKey"
+    const keys = key.split('.');
+    let value = config;
+    for (const k of keys) {
+      value = value?.[k];
+    }
+
+    return value;
+  } catch (error) {
+    console.error(`读取配置失败 (${key}):`, error);
+    return null;
+  }
 });
 
 // 数据库相关的IPC处理

@@ -13,7 +13,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { openModal } from '../../store/slices/appSlice';
 import { saveArticle } from '../../store/slices/articlesSlice';
-import { publishArticle } from '../../store/slices/publishSlice';
+// import { publishArticle } from '../../store/slices/publishSlice'; // 暂时注释掉
 import './Header.css';
 
 const { Header: AntHeader } = Layout;
@@ -21,8 +21,12 @@ const { Header: AntHeader } = Layout;
 function Header({ collapsed, onToggle }) {
   const dispatch = useDispatch();
   const { currentArticle, saving } = useSelector(state => state.articles);
-  const { publishing, tasks } = useSelector(state => state.publish);
+  // const { publishing, tasks } = useSelector(state => state.publish); // 暂时注释掉
   const { settings } = useSelector(state => state.app);
+
+  // 临时设置默认值
+  const publishing = false;
+  const tasks = [];
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 

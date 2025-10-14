@@ -190,6 +190,41 @@ const articleSlice = createSlice({
       }
     },
 
+    // 创建新文章
+    createNewArticle: (state) => {
+      const newArticle = {
+        id: `draft_${Date.now()}`, // 临时ID
+        title: '无标题',
+        content: '',
+        status: 0, // 草稿
+        wordCount: 0,
+        charCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        tags: [],
+        platforms: [],
+      };
+
+      state.currentArticle = newArticle;
+      state.draftArticle = { ...newArticle };
+      state.editorState.content = '';
+      state.editorState.wordCount = 0;
+      state.editorState.charCount = 0;
+      state.editorState.lastSaved = null;
+      state.editorState.dirty = false;
+      state.error = null;
+    },
+
+    // 更新当前文章
+    updateCurrentArticle: (state, action) => {
+      const updates = action.payload;
+      if (state.currentArticle) {
+        state.currentArticle = { ...state.currentArticle, ...updates };
+        state.draftArticle = { ...state.draftArticle, ...updates };
+        state.editorState.dirty = true;
+      }
+    },
+
     // 更新草稿文章
     updateDraftArticle: (state, action) => {
       state.draftArticle = { ...state.draftArticle, ...action.payload };
@@ -517,6 +552,8 @@ const articleSlice = createSlice({
 
 export const {
   setCurrentArticle,
+  createNewArticle,
+  updateCurrentArticle,
   updateDraftArticle,
   updateEditorContent,
   setSaved,

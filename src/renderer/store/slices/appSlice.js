@@ -129,8 +129,8 @@ const appSlice = createSlice({
       .addCase(initializeApp.fulfilled, (state, action) => {
         state.loading = false;
         state.initialized = true;
-        state.version = action.payload.version;
-        state.platform = action.payload.platform;
+        state.version = action.payload.version || '1.0.0';
+        state.platform = action.payload.platform || 'unknown';
         state.error = null;
       })
       .addCase(initializeApp.rejected, (state, action) => {

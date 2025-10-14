@@ -1,0 +1,258 @@
+/* TinyMCE编辑器容器样式 */
+.tinymce-editor-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 编辑器工具栏 */
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+  min-height: 48px;
+}
+
+.editor-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: #666;
+}
+
+.word-count,
+.reading-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.word-count::before {
+  content: '📝';
+}
+
+.reading-time::before {
+  content: '⏱️';
+}
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.save-button {
+  padding: 6px 12px;
+  background: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.save-button:hover {
+  background: #40a9ff;
+  transform: translateY(-1px);
+}
+
+.save-button:active {
+  background: #096dd9;
+  transform: translateY(0);
+}
+
+/* 编辑器包装器 */
+.editor-wrapper {
+  flex: 1;
+  position: relative;
+  min-height: 400px;
+}
+
+/* 编辑器加载状态 */
+.editor-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+  color: #666;
+  font-size: 14px;
+  z-index: 10;
+}
+
+/* TinyMCE编辑器样式覆盖 */
+.tinymce-editor-container .tox-tinymce {
+  border: none;
+  border-radius: 0;
+}
+
+.tinymce-editor-container .tox-toolbar {
+  border-bottom: 1px solid #e8e8e8;
+  background: #ffffff;
+}
+
+.tinymce-editor-container .tox-toolbar__group {
+  padding: 0 4px;
+}
+
+.tinymce-editor-container .tox-toolbar__primary {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.tinymce-editor-container .tox-toolbar button {
+  margin: 2px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.tinymce-editor-container .tox-toolbar button:hover {
+  background-color: #f0f0f0;
+}
+
+.tinymce-editor-container .tox-toolbar button.tox-tbtn--enabled {
+  background-color: #e6f7ff;
+  color: #1890ff;
+}
+
+/* 编辑区域样式 */
+.tinymce-editor-container .tox-edit-area {
+  border: none;
+}
+
+.tinymce-editor-container .tox-edit-area iframe {
+  background: #ffffff;
+  border: none;
+  min-height: 400px;
+}
+
+/* 状态栏样式 */
+.tinymce-editor-container .tox-statusbar {
+  border-top: 1px solid #e8e8e8;
+  background: #fafafa;
+  color: #666;
+  font-size: 12px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .editor-toolbar {
+    padding: 8px 12px;
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .editor-stats {
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .editor-actions {
+    justify-content: center;
+  }
+
+  .tinymce-editor-container .tox-toolbar {
+    overflow-x: auto;
+  }
+
+  .tinymce-editor-container .tox-toolbar__primary {
+    flex-wrap: wrap;
+  }
+}
+
+/* 深色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .tinymce-editor-container {
+    background: #1f1f1f;
+  }
+
+  .editor-toolbar {
+    background: #2a2a2a;
+    border-bottom-color: #404040;
+  }
+
+  .editor-stats {
+    color: #ccc;
+  }
+
+  .editor-loading {
+    background: #2a2a2a;
+    color: #ccc;
+  }
+
+  .tinymce-editor-container .tox-tinymce {
+    background: #1f1f1f;
+  }
+
+  .tinymce-editor-container .tox-toolbar {
+    background: #2a2a2a;
+    border-bottom-color: #404040;
+  }
+
+  .tinymce-editor-container .tox-toolbar button {
+    color: #ccc;
+  }
+
+  .tinymce-editor-container .tox-toolbar button:hover {
+    background-color: #404040;
+  }
+
+  .tinymce-editor-container .tox-toolbar button.tox-tbtn--enabled {
+    background-color: #003a8c;
+    color: #1890ff;
+  }
+
+  .tinymce-editor-container .tox-statusbar {
+    background: #2a2a2a;
+    border-top-color: #404040;
+    color: #ccc;
+  }
+}
+
+/* 聚焦状态 */
+.tinymce-editor-container:focus-within {
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.15);
+}
+
+/* 错误状态 */
+.tinymce-editor-container.error {
+  border: 1px solid #ff4d4f;
+}
+
+.tinymce-editor-container.error .editor-toolbar {
+  border-bottom-color: #ff4d4f;
+  background: #fff2f0;
+}
+
+/* 禁用状态 */
+.tinymce-editor-container.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* 打印样式 */
+@media print {
+  .tinymce-editor-container {
+    box-shadow: none;
+    border: 1px solid #ddd;
+  }
+
+  .editor-toolbar {
+    display: none;
+  }
+}

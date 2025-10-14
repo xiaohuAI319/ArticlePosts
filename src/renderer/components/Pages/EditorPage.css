@@ -1,0 +1,246 @@
+/* 编辑器页面样式 */
+.editor-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.header-left {
+  flex: 1;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 编辑器行布局 */
+.editor-row {
+  flex: 1;
+  margin-bottom: 16px;
+}
+
+.editor-col,
+.preview-col {
+  height: 100%;
+}
+
+/* 卡片标题样式 */
+.card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+
+.article-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #f0f0f0;
+  color: #666;
+  font-weight: normal;
+}
+
+.article-status[data-status="0"] {
+  background: #e6f7ff;
+  color: #1890ff;
+}
+
+.article-status[data-status="1"] {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.article-status[data-status="2"] {
+  background: #fff2f0;
+  color: #ff4d4f;
+}
+
+.preview-stats {
+  font-size: 12px;
+  color: #666;
+  font-weight: normal;
+}
+
+/* 编辑器卡片 */
+.editor-card,
+.preview-card {
+  height: 100%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+}
+
+.editor-card .ant-card-body,
+.preview-card .ant-card-body {
+  height: calc(100% - 57px); /* 减去标题高度 */
+  padding: 0;
+}
+
+/* 编辑器占位符 */
+.editor-placeholder,
+.preview-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+  color: #999;
+}
+
+.placeholder-content {
+  text-align: center;
+}
+
+.placeholder-content p {
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+/* 工具栏 */
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+}
+
+.toolbar-info {
+  font-size: 12px;
+  color: #666;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .editor-page .page-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    justify-content: center;
+  }
+
+  .editor-row {
+    flex-direction: column;
+  }
+
+  .editor-col,
+  .preview-col {
+    width: 100%;
+  }
+
+  .editor-toolbar {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+}
+
+/* 深色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .editor-page .page-header {
+    border-bottom-color: #404040;
+  }
+
+  .article-status {
+    background: #404040;
+    color: #ccc;
+  }
+
+  .editor-card,
+  .preview-card {
+    background: #1f1f1f;
+    border-color: #404040;
+  }
+
+  .editor-placeholder,
+  .preview-placeholder {
+    background: #2a2a2a;
+    color: #999;
+  }
+
+  .editor-toolbar {
+    background: #2a2a2a;
+    border-color: #404040;
+  }
+
+  .toolbar-info {
+    color: #ccc;
+  }
+}
+
+/* 动画效果 */
+.editor-card,
+.preview-card {
+  transition: all 0.3s ease;
+}
+
+.editor-card:hover,
+.preview-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* 加载状态 */
+.editor-card.loading .ant-card-body {
+  position: relative;
+}
+
+.editor-card.loading .ant-card-body::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+/* 焦点状态 */
+.editor-card:focus-within {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+/* 打印样式 */
+@media print {
+  .editor-page .page-header,
+  .editor-toolbar {
+    display: none;
+  }
+
+  .editor-row {
+    margin: 0;
+  }
+
+  .editor-card,
+  .preview-card {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    margin-bottom: 16px;
+  }
+}

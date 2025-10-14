@@ -4,14 +4,8 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 module.exports = {
   mode: 'development',
   entry: './src/renderer/index.jsx',
-  target: 'web', // 改为web目标
+  target: 'electron-renderer',
   devtool: 'source-map',
-  resolve: {
-    extensions: ['.js', '.jsx'],
-    fallback: {
-      "global": require.resolve("global"),
-    }
-  },
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'bundle.js',
@@ -38,9 +32,6 @@ module.exports = {
   plugins: [
     new HtmlWebpackPlugin({
       template: './public/index.html',
-      filename: 'index.html',
-      inject: 'body',
-      scriptLoading: 'defer',
     }),
   ],
   devServer: {

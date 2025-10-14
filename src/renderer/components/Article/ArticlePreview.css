@@ -1,0 +1,391 @@
+/* 文章预览样式 */
+.article-preview {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* 预览头部 */
+.preview-header {
+  margin-bottom: 16px;
+}
+
+.preview-title h2 {
+  margin: 0 0 12px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #262626;
+  line-height: 1.4;
+}
+
+.preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.meta-item .anticon {
+  font-size: 14px;
+}
+
+/* 目录 */
+.table-of-contents {
+  background: #fafafa;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.table-of-contents h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.table-of-contents ul {
+  margin: 0;
+  padding-left: 16px;
+  list-style: none;
+}
+
+.table-of-contents li {
+  margin: 4px 0;
+  font-size: 12px;
+  color: #595959;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  line-height: 1.4;
+}
+
+.table-of-contents li:hover {
+  color: #1890ff;
+}
+
+.table-of-contents .heading-level-1 {
+  font-weight: 600;
+  margin-left: 0;
+}
+
+.table-of-contents .heading-level-2 {
+  margin-left: 8px;
+  font-weight: 500;
+}
+
+.table-of-contents .heading-level-3 {
+  margin-left: 16px;
+  font-weight: 400;
+}
+
+.table-of-contents .heading-level-4,
+.table-of-contents .heading-level-5,
+.table-of-contents .heading-level-6 {
+  margin-left: 24px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+/* 预览内容 */
+.preview-body {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.preview-content {
+  line-height: 1.6;
+  color: #262626;
+  font-size: 14px;
+}
+
+/* 预览内容样式 */
+.preview-content h1,
+.preview-content h2,
+.preview-content h3,
+.preview-content h4,
+.preview-content h5,
+.preview-content h6 {
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+  color: #262626;
+  line-height: 1.4;
+}
+
+.preview-content h1 {
+  font-size: 20px;
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 8px;
+}
+
+.preview-content h2 {
+  font-size: 18px;
+}
+
+.preview-content h3 {
+  font-size: 16px;
+}
+
+.preview-content h4 {
+  font-size: 14px;
+}
+
+.preview-content h5,
+.preview-content h6 {
+  font-size: 13px;
+}
+
+.preview-content p {
+  margin: 8px 0;
+  text-align: justify;
+}
+
+.preview-content ul,
+.preview-content ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.preview-content li {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.preview-content blockquote {
+  margin: 16px 0;
+  padding: 8px 16px;
+  border-left: 4px solid #d9d9d9;
+  background: #fafafa;
+  color: #595959;
+  font-style: italic;
+}
+
+.preview-content pre {
+  margin: 16px 0;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.preview-content code {
+  background: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.preview-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.preview-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 12px;
+}
+
+.preview-content th,
+.preview-content td {
+  border: 1px solid #f0f0f0;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.preview-content th {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.preview-content img {
+  max-width: 100%;
+  height: auto;
+  margin: 8px 0;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.preview-content a {
+  color: #1890ff;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.preview-content a:hover {
+  color: #40a9ff;
+  text-decoration: underline;
+}
+
+/* 空状态 */
+.preview-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #8c8c8c;
+  text-align: center;
+}
+
+.preview-empty p {
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+/* 预览底部 */
+.preview-footer {
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.preview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .preview-meta {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .preview-content h1 {
+    font-size: 18px;
+  }
+
+  .preview-content h2 {
+    font-size: 16px;
+  }
+
+  .preview-content h3 {
+    font-size: 14px;
+  }
+
+  .table-of-contents {
+    padding: 8px;
+  }
+
+  .preview-content {
+    font-size: 13px;
+  }
+}
+
+/* 深色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .preview-title h2 {
+    color: #e6e6e6;
+  }
+
+  .meta-item {
+    color: #999;
+  }
+
+  .table-of-contents {
+    background: #2a2a2a;
+  }
+
+  .table-of-contents h4 {
+    color: #e6e6e6;
+  }
+
+  .table-of-contents li {
+    color: #ccc;
+  }
+
+  .table-of-contents li:hover {
+    color: #40a9ff;
+  }
+
+  .preview-content {
+    color: #e6e6e6;
+  }
+
+  .preview-content h1,
+  .preview-content h2,
+  .preview-content h3,
+  .preview-content h4,
+  .preview-content h5,
+  .preview-content h6 {
+    color: #e6e6e6;
+  }
+
+  .preview-content h1 {
+    border-bottom-color: #404040;
+  }
+
+  .preview-content blockquote {
+    background: #2a2a2a;
+    border-left-color: #555;
+    color: #ccc;
+  }
+
+  .preview-content pre {
+    background: #2a2a2a;
+  }
+
+  .preview-content code {
+    background: #2a2a2a;
+  }
+
+  .preview-content th,
+  .preview-content td {
+    border-color: #404040;
+  }
+
+  .preview-content th {
+    background: #333;
+  }
+
+  .preview-footer {
+    border-top-color: #404040;
+  }
+
+  .preview-empty {
+    color: #999;
+  }
+}
+
+/* 打印样式 */
+@media print {
+  .preview-header,
+  .preview-footer {
+    display: none;
+  }
+
+  .preview-content {
+    color: #000;
+    font-size: 12pt;
+  }
+
+  .preview-content h1 {
+    font-size: 16pt;
+  }
+
+  .preview-content h2 {
+    font-size: 14pt;
+  }
+
+  .preview-content h3 {
+    font-size: 12pt;
+  }
+
+  .preview-content img {
+    box-shadow: none;
+  }
+}

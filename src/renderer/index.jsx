@@ -1,9 +1,10 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
+import { PersistGate } from 'redux-persist/integration/react';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import { store } from './store';
+import { store, persistor } from './store';
 import App from './App';
 import './styles/global.css';
 
@@ -22,9 +23,11 @@ const root = createRoot(container);
 root.render(
   <React.StrictMode>
     <Provider store={store}>
-      <ConfigProvider locale={zhCN}>
-        <App />
-      </ConfigProvider>
+      <PersistGate loading={<div>正在加载应用...</div>} persistor={persistor}>
+        <ConfigProvider locale={zhCN}>
+          <App />
+        </ConfigProvider>
+      </PersistGate>
     </Provider>
   </React.StrictMode>
 );

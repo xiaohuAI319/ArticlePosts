@@ -14,6 +14,7 @@ config/
 *.pem
 *.p12
 *.jks
+config.json
 
 # 用户凭据和登录状态
 credentials/
