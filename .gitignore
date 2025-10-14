@@ -1,0 +1,87 @@
+# 项目敏感信息保护配置
+# 此文件确保敏感信息不会被提交到Git仓库
+
+# 进度记录文件（包含内部工作进展）
+jindu.md
+
+# 敏感配置文件
+config/
+*.config
+*.env
+*.env.local
+*.env.production
+*.key
+*.pem
+*.p12
+*.jks
+
+# 用户凭据和登录状态
+credentials/
+sessions/
+cookies/
+tokens/
+login_state/
+
+# 平台配置和认证信息
+platforms/config/
+platforms/auth/
+platforms/credentials/
+
+# 日志文件（可能包含敏感信息）
+logs/
+*.log
+*.out
+
+# 临时文件
+temp/
+tmp/
+cache/
+.DS_Store
+Thumbs.db
+
+# 编辑器配置
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Node.js依赖
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python依赖
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 构建输出
+dist/
+build/
+out/
+target/
+
+# 系统文件
+# .specify/ 目录需要保留（包含项目配置）
+# 但是排除其中的敏感子目录
+.specify/memory/secrets/
+.specify/memory/credentials/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 备份文件
+*.bak
+*.backup
+*.old
