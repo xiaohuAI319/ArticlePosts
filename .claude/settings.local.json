@@ -3,9 +3,47 @@
     "allow": [
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "mcp__github__push_files",
+      "Bash(powershell:*)",
+      "Bash(git checkout:*)",
+      "mcp__sequential-thinking__sequentialthinking",
+      "mcp__web-search-prime__webSearchPrime",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Read(../jindu.md)",
+      "Read(../guifan.md)",
+      "Read(../specs/**/*.md)",
+      "Bash(git rev-parse:*)",
+      "Bash(npm install)",
+      "Bash(npm run test:*)",
+      "Bash(npx jest:*)",
+      "Bash(npm rebuild:*)",
+      "Bash(node src/main/database/test.js:*)",
+      "Bash(tree:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run lint:fix:*)",
+      "Bash(npm test:*)",
+      "Bash(node:*)",
+      "Bash(npm run dev)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/check-specs.js"
+          }
+        ]
+      }
+    ]
   }
 }

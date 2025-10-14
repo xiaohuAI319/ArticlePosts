@@ -1,0 +1,828 @@
+openapi: 3.0.3
+info:
+  title: 文章一键多发平台 API
+  description: 文章多平台发布系统的内部API接口定义
+  version: 1.0.0
+  contact:
+    name: 开发团队
+    email: dev@example.com
+
+servers:
+  - url: http://localhost:3000/api
+    description: 开发环境
+  - url: electron://main/api
+    description: Electron主进程
+
+paths:
+  # 文章管理
+  /articles:
+    get:
+      summary: 获取文章列表
+      tags:
+        - Articles
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1, 2]
+            description: 0:草稿 1:已发布 2:发布失败
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功返回文章列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      summary: 创建新文章
+      tags:
+        - Articles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - content
+              properties:
+                title:
+                  type: string
+                  maxLength: 200
+                  example: "我的第一篇文章"
+                content:
+                  type: string
+                  description: Quill Delta格式内容
+                  example: '{"ops":[{"insert":"Hello World\n"}]}'
+                html_content:
+                  type: string
+                  description: 渲染后的HTML内容
+                cover_image:
+                  type: string
+                  format: uri
+                tags:
+                  type: array
+                  items:
+                    type: string
+                category:
+                  type: string
+      responses:
+        '201':
+          description: 文章创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Article'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /articles/{id}:
+    get:
+      summary: 获取文章详情
+      tags:
+        - Articles
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功返回文章详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Article'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    put:
+      summary: 更新文章
+      tags:
+        - Articles
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 200
+                content:
+                  type: string
+                  description: Quill Delta格式内容
+                html_content:
+                  type: string
+                cover_image:
+                  type: string
+                  format: uri
+                tags:
+                  type: array
+                  items:
+                    type: string
+                category:
+                  type: string
+                status:
+                  type: integer
+                  enum: [0, 1, 2]
+      responses:
+        '200':
+          description: 文章更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Article'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      summary: 删除文章
+      tags:
+        - Articles
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 文章删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "文章删除成功"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # 平台管理
+  /platforms:
+    get:
+      summary: 获取支持的平台列表
+      tags:
+        - Platforms
+      responses:
+        '200':
+          description: 成功返回平台列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Platform'
+
+  # 登录管理
+  /platforms/{platformId}/login:
+    post:
+      summary: 平台登录
+      tags:
+        - Auth
+      parameters:
+        - name: platformId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - method
+              properties:
+                method:
+                  type: string
+                  enum: [qr_code, password]
+                  description: 登录方式
+                credentials:
+                  type: object
+                  description: 登录凭证(密码登录时使用)
+                  properties:
+                    username:
+                      type: string
+                    password:
+                      type: string
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/LoginSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: 登录失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /platforms/{platformId}/qr-code:
+    get:
+      summary: 获取二维码
+      tags:
+        - Auth
+      parameters:
+        - name: platformId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功返回二维码
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      qr_code:
+                        type: string
+                        format: base64
+                        description: Base64编码的二维码图片
+                      expires_in:
+                        type: integer
+                        description: 二维码过期时间(秒)
+
+  # 发布管理
+  /publish:
+    post:
+      summary: 发布文章到平台
+      tags:
+        - Publish
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - articleId
+                - platformIds
+              properties:
+                articleId:
+                  type: integer
+                  description: 文章ID
+                platformIds:
+                  type: array
+                  items:
+                    type: integer
+                  description: 目标平台ID列表
+                sessionId:
+                  type: integer
+                  description: 登录会话ID(可选)
+                configId:
+                  type: integer
+                  description: 配置ID(可选)
+      responses:
+        '200':
+          description: 发布任务创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PublishTask'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /publish/tasks/{taskId}/status:
+    get:
+      summary: 获取发布任务状态
+      tags:
+        - Publish
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功返回任务状态
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PublishTask'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /publish/tasks/{taskId}/retry:
+    post:
+      summary: 重试发布任务
+      tags:
+        - Publish
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 重试任务创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PublishTask'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # 配置管理
+  /platforms/{platformId}/configs:
+    get:
+      summary: 获取平台配置列表
+      tags:
+        - Configs
+      parameters:
+        - name: platformId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功返回配置列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserPlatformConfig'
+
+    post:
+      summary: 创建平台配置
+      tags:
+        - Configs
+      parameters:
+        - name: platformId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - configName
+                - configData
+              properties:
+                configName:
+                  type: string
+                  maxLength: 100
+                configData:
+                  type: object
+                  description: 配置数据
+                isDefault:
+                  type: boolean
+                  default: false
+      responses:
+        '201':
+          description: 配置创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/UserPlatformConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # 系统配置
+  /system/configs:
+    get:
+      summary: 获取系统配置
+      tags:
+        - System
+      responses:
+        '200':
+          description: 成功返回系统配置
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    additionalProperties:
+                      type: string
+
+    put:
+      summary: 更新系统配置
+      tags:
+        - System
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: string
+      responses:
+        '200':
+          description: 配置更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "配置更新成功"
+
+components:
+  schemas:
+    Article:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        uuid:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        title:
+          type: string
+          example: "我的第一篇文章"
+        content:
+          type: string
+          description: Quill Delta格式内容
+        html_content:
+          type: string
+          description: 渲染后的HTML内容
+        cover_image:
+          type: string
+          format: uri
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["技术", "教程"]
+        category:
+          type: string
+          example: "技术分享"
+        status:
+          type: integer
+          enum: [0, 1, 2]
+          description: 0:草稿 1:已发布 2:发布失败
+        word_count:
+          type: integer
+          example: 1500
+        reading_time:
+          type: integer
+          example: 5
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Platform:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "zhihu"
+        display_name:
+          type: string
+          example: "知乎"
+        icon_url:
+          type: string
+          format: uri
+        base_url:
+          type: string
+          format: uri
+        login_url:
+          type: string
+          format: uri
+        publish_url:
+          type: string
+          format: uri
+        is_active:
+          type: boolean
+          example: true
+        priority:
+          type: integer
+          example: 1
+
+    LoginSession:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        platform_id:
+          type: integer
+          example: 1
+        session_name:
+          type: string
+          example: "我的知乎账号"
+        login_method:
+          type: string
+          example: "qr_code"
+        expires_at:
+          type: string
+          format: date-time
+        is_active:
+          type: boolean
+          example: true
+        last_used_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    UserPlatformConfig:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        platform_id:
+          type: integer
+          example: 1
+        config_name:
+          type: string
+          example: "默认配置"
+        config_data:
+          type: object
+          description: 配置数据
+        is_default:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PublishTask:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        article_id:
+          type: integer
+          example: 1
+        platform_id:
+          type: integer
+          example: 1
+        session_id:
+          type: integer
+          example: 1
+        config_id:
+          type: integer
+          example: 1
+        status:
+          type: integer
+          enum: [0, 1, 2, 3]
+          description: 0:待处理 1:进行中 2:成功 3:失败
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 75
+        error_message:
+          type: string
+          example: null
+        retry_count:
+          type: integer
+          example: 0
+        max_retries:
+          type: integer
+          example: 3
+        published_url:
+          type: string
+          format: uri
+          example: null
+        platform_article_id:
+          type: string
+          example: null
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 100
+        totalPages:
+          type: integer
+          example: 5
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              example: "请求参数验证失败"
+            details:
+              type: array
+              items:
+                type: string
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ServerError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+security:
+  - ApiKeyAuth: []

@@ -1,0 +1,55 @@
+.content-area {
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 页面容器样式 */
+.content-area .page-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.content-area .page-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.content-area .page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #262626;
+  margin: 0;
+}
+
+.content-area .page-description {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin: 8px 0 0 0;
+}
+
+.content-area .page-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .content-area .page-container {
+    padding: 16px;
+  }
+
+  .content-area .page-title {
+    font-size: 18px;
+  }
+
+  .content-area .page-description {
+    font-size: 13px;
+  }
+}
