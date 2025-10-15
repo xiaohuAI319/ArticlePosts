@@ -6,7 +6,8 @@ import {
   GlobalOutlined,
   SettingOutlined,
   HistoryOutlined,
-  FolderOutlined
+  FolderOutlined,
+  DesktopOutlined
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { setCurrentPage } from '../../store/slices/appSlice';
@@ -44,9 +45,6 @@ function Sidebar() {
       key: 'history',
       icon: <HistoryOutlined />,
       label: '发布历史'
-    },
-    {
-      type: 'divider'
     },
     {
       key: 'settings',

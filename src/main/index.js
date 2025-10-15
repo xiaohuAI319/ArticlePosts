@@ -2,6 +2,11 @@ const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const isDev = process.argv.includes('--dev');
 
+// 设置控制台编码为UTF-8
+if (process.platform === 'win32') {
+  process.env.NODE_OPTIONS = '--max-old-space-size=4096';
+}
+
 // 在开发环境中禁用Electron的安全警告
 if (isDev) {
   process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = '1';
@@ -17,6 +22,8 @@ const PlatformService = require('./services/PlatformService');
 const LoginSessionService = require('./services/LoginSessionService');
 // 导入二维码服务
 const QRCodeService = require('./services/QRCodeService');
+// 导入浏览器管理服务
+const { BrowserManager } = require('./automation/BrowserManager');
 
 // 保持对窗口对象的全局引用，如果不这样做，当JavaScript对象被垃圾回收时，窗口将自动关闭
 let mainWindow;
@@ -28,6 +35,8 @@ const platformService = new PlatformService();
 const loginSessionService = new LoginSessionService();
 // 创建二维码服务实例
 const qrCodeService = new QRCodeService();
+// 创建浏览器管理服务实例
+const browserManager = new BrowserManager();
 
 function createWindow() {
   console.log('正在创建应用窗口...');
@@ -158,6 +167,11 @@ app.whenReady().then(async () => {
     await qrCodeService.initialize();
     console.log('二维码服务初始化完成');
 
+    // 初始化浏览器管理服务
+    console.log('正在初始化浏览器管理服务...');
+    browserManager.startAutoCleanup();
+    console.log('浏览器管理服务初始化完成');
+
     // 创建应用窗口
     createWindow();
 
@@ -176,8 +190,23 @@ app.whenReady().then(async () => {
   }
 });
 
+// 应用退出前清理
+app.on('before-quit', async () => {
+  try {
+    // 停止自动清理定时器
+    browserManager.stopAutoCleanup();
+
+    // 清理所有浏览器实例
+    console.log('正在清理浏览器实例...');
+    await browserManager.cleanup();
+    console.log('浏览器实例清理完成');
+  } catch (error) {
+    console.error('清理浏览器实例失败:', error);
+  }
+});
+
 // 当全部窗口关闭时退出应用
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
   // 在macOS上，除非用户用Cmd + Q确定地退出，否则绝大部分应用及其菜单栏会保持激活
   if (process.platform !== 'darwin') {
     app.quit();
@@ -656,6 +685,138 @@ ipcMain.handle('qrCode:cleanup', async () => {
     throw error;
   }
 });
+
+// 浏览器管理相关的IPC处理程序
+ipcMain.handle('browser:create', async (event, config) => {
+  try {
+    const browser = await browserManager.createBrowser(config);
+    const browserId = browserManager.getBrowserId(browser);
+
+    // 获取进程ID，但如果进程还未启动则使用null
+    let processId = null;
+    try {
+      processId = browser.process()?.pid || null;
+    } catch (e) {
+      processId = null;
+    }
+
+    return {
+      success: true,
+      data: {
+        browserId,
+        processId
+      },
+      message: '浏览器创建成功'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      message: '浏览器创建失败'
+    };
+  }
+});
+
+ipcMain.handle('browser:close', async (event, browserId) => {
+  try {
+    const browser = browserManager.getBrowser(browserId);
+    if (!browser) {
+      throw new Error('浏览器实例未找到');
+    }
+    await browserManager.closeBrowser(browser);
+    return {
+      success: true,
+      message: '浏览器关闭成功'
+    };
+  } catch (error) {
+    console.error('关闭浏览器失败:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: '浏览器关闭失败'
+    };
+  }
+});
+
+ipcMain.handle('browser:getAll', async () => {
+  try {
+    const browsers = browserManager.getAllBrowsers();
+    return {
+      success: true,
+      data: browsers.map(b => ({
+        id: b.id,
+        metadata: b.metadata,
+        connected: b.browser.isConnected()
+      })),
+      message: '获取浏览器列表成功'
+    };
+  } catch (error) {
+    console.error('获取浏览器列表失败:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: '获取浏览器列表失败'
+    };
+  }
+});
+
+ipcMain.handle('browser:getStats', async () => {
+  try {
+    const stats = browserManager.getStats();
+    const healthStatus = browserManager.getHealthStatus();
+    return {
+      success: true,
+      data: {
+        ...stats,
+        health: healthStatus
+      },
+      message: '获取浏览器统计信息成功'
+    };
+  } catch (error) {
+    console.error('获取浏览器统计信息失败:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: '获取浏览器统计信息失败'
+    };
+  }
+});
+
+ipcMain.handle('browser:cleanup', async () => {
+  try {
+    await browserManager.cleanup();
+    return {
+      success: true,
+      message: '浏览器清理完成'
+    };
+  } catch (error) {
+    console.error('清理浏览器失败:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: '清理浏览器失败'
+    };
+  }
+});
+
+ipcMain.handle('browser:getStealthConfig', async () => {
+  try {
+    const config = browserManager.getStealthConfig();
+    return {
+      success: true,
+      data: config,
+      message: '获取隐身配置成功'
+    };
+  } catch (error) {
+    console.error('获取隐身配置失败:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: '获取隐身配置失败'
+    };
+  }
+});
+
 
 // 处理来自渲染进程的消息
 ipcMain.on('renderer-message', (event, data) => {

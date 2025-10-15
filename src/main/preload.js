@@ -135,6 +135,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     cleanup: () => ipcRenderer.invoke('qrCode:cleanup')
   },
 
+  // 浏览器管理相关API
+  browser: {
+    // 创建浏览器实例
+    create: (config) => ipcRenderer.invoke('browser:create', config),
+
+    // 关闭浏览器实例
+    close: (browserId) => ipcRenderer.invoke('browser:close', browserId),
+
+    // 获取所有浏览器实例
+    getAll: () => ipcRenderer.invoke('browser:getAll'),
+
+    // 获取浏览器统计信息
+    getStats: () => ipcRenderer.invoke('browser:getStats'),
+
+    // 清理所有浏览器实例
+    cleanup: () => ipcRenderer.invoke('browser:cleanup'),
+
+    // 获取隐身配置
+    getStealthConfig: () => ipcRenderer.invoke('browser:getStealthConfig')
+  },
+
   // 菜单事件监听
   onMenuAction: (callback) => {
     const menuActions = [
