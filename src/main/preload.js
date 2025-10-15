@@ -156,6 +156,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getStealthConfig: () => ipcRenderer.invoke('browser:getStealthConfig')
   },
 
+  // 平台自动化登录相关API
+  autoLogin: {
+    // 启动平台登录流程
+    start: (platformId, options) => ipcRenderer.invoke('autoLogin:start', platformId, options),
+
+    // 获取登录状态
+    getStatus: (loginId) => ipcRenderer.invoke('autoLogin:getStatus', loginId),
+
+    // 取消登录流程
+    cancel: (loginId) => ipcRenderer.invoke('autoLogin:cancel', loginId),
+
+    // 获取活跃登录列表
+    getActiveLogins: () => ipcRenderer.invoke('autoLogin:getActiveLogins')
+  },
+
   // 菜单事件监听
   onMenuAction: (callback) => {
     const menuActions = [

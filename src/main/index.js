@@ -24,6 +24,8 @@ const LoginSessionService = require('./services/LoginSessionService');
 const QRCodeService = require('./services/QRCodeService');
 // 导入浏览器管理服务
 const { BrowserManager } = require('./automation/BrowserManager');
+// 导入平台自动化登录服务
+const PlatformAutoLoginService = require('./services/PlatformAutoLoginService');
 
 // 保持对窗口对象的全局引用，如果不这样做，当JavaScript对象被垃圾回收时，窗口将自动关闭
 let mainWindow;
@@ -37,6 +39,8 @@ const loginSessionService = new LoginSessionService();
 const qrCodeService = new QRCodeService();
 // 创建浏览器管理服务实例
 const browserManager = new BrowserManager();
+// 创建平台自动化登录服务实例
+const platformAutoLoginService = new PlatformAutoLoginService();
 
 function createWindow() {
   console.log('正在创建应用窗口...');
@@ -171,6 +175,11 @@ app.whenReady().then(async () => {
     console.log('正在初始化浏览器管理服务...');
     browserManager.startAutoCleanup();
     console.log('浏览器管理服务初始化完成');
+
+    // 初始化平台自动化登录服务
+    console.log('正在初始化平台自动化登录服务...');
+    await platformAutoLoginService.initialize();
+    console.log('平台自动化登录服务初始化完成');
 
     // 创建应用窗口
     createWindow();
@@ -817,6 +826,48 @@ ipcMain.handle('browser:getStealthConfig', async () => {
   }
 });
 
+
+// 平台自动化登录相关的IPC处理程序 - 使用PlatformAutoLoginService
+ipcMain.handle('autoLogin:start', async (event, platformId, options) => {
+  try {
+    return await platformAutoLoginService.startPlatformLogin(platformId, options);
+  } catch (error) {
+    console.error('启动平台自动登录失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('autoLogin:getStatus', async (event, loginId) => {
+  try {
+    return await platformAutoLoginService.getLoginStatus(loginId);
+  } catch (error) {
+    console.error('获取登录状态失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('autoLogin:cancel', async (event, loginId) => {
+  try {
+    return await platformAutoLoginService.cancelLogin(loginId);
+  } catch (error) {
+    console.error('取消登录失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('autoLogin:getActiveLogins', async () => {
+  try {
+    const activeLogins = platformAutoLoginService.getActiveLogins();
+    return {
+      success: true,
+      data: activeLogins,
+      message: '获取活跃登录列表成功'
+    };
+  } catch (error) {
+    console.error('获取活跃登录列表失败:', error);
+    throw error;
+  }
+});
 
 // 处理来自渲染进程的消息
 ipcMain.on('renderer-message', (event, data) => {
