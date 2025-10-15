@@ -5,9 +5,9 @@ export const initializeApp = createAsyncThunk(
   'app/initialize',
   async (_, { rejectWithValue }) => {
     try {
-      // 获取应用版本
-      const version = window.electronAPI?.getAppVersion() || '1.0.0';
-      const platform = window.electronAPI?.getPlatform() || 'unknown';
+      // 获取应用版本 - 正确等待Promise
+      const version = await window.electronAPI?.getAppVersion() || '1.0.0';
+      const platform = await window.electronAPI?.getPlatform() || 'unknown';
 
       // 模拟其他初始化操作
       await new Promise(resolve => setTimeout(resolve, 1000));

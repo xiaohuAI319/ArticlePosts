@@ -95,7 +95,7 @@ function EditorPage() {
                 </div>
               }
               className="editor-card"
-              bodyStyle={{ padding: 0, height: '600px' }}
+              styles={{ body: { padding: 0, height: '600px' } }}
             >
               {currentArticle ? (
                 <TinyMCEEditor
@@ -129,7 +129,7 @@ function EditorPage() {
                   </div>
                 }
                 className="preview-card"
-                bodyStyle={{ padding: '16px', height: '600px', overflow: 'auto' }}
+                styles={{ body: { padding: '16px', height: '600px', overflow: 'auto' } }}
               >
                 {currentArticle?.content ? (
                   <ArticlePreview content={currentArticle.content} />
