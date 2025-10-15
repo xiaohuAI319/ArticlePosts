@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { updateCurrentArticle } from '../../store/slices/articleSlice';
@@ -62,32 +62,13 @@ const TINYMCE_CONFIG = {
       resolve(url);
     });
   },
-  // 自动保存
+  // 自动保存 - 简化配置，避免API问题
   setup: (editor) => {
-    // 自动保存定时器
-    let autoSaveTimer;
-
-  
-    editor.on('input NodeChange', () => {
-      // 清除之前的定时器
-      if (autoSaveTimer) {
-        clearTimeout(autoSaveTimer);
-      }
-
-      // 设置新的自动保存定时器（30秒）
-      autoSaveTimer = setTimeout(() => {
-        const content = editor.getContent();
-        const title = editor.dom.select('h1, h2, h3')[0]?.innerText || '无标题';
-
-        // 触发自动保存事件
-        editor.fire('autoSave', {
-          title: title.trim(),
-          content: content
-        });
-      }, 30000);
+    // 编辑器初始化完成事件
+    editor.on('init', () => {
+      console.log('TinyMCE编辑器初始化完成');
     });
-
-    }
+  }
 };
 
 function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的文章...' }) {
@@ -99,6 +80,16 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
   const [wordCount, setWordCount] = useState(0);
   const [readingTime, setReadingTime] = useState(0);
   const [tinyMCEApiKey, setTinyMCEApiKey] = useState(null); // 改为null，表示还未加载
+  const autoSaveTimerRef = useRef(null);
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
 
   // 加载TinyMCE API key
   useEffect(() => {
@@ -137,6 +128,25 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
     setReadingTime(readingMinutes);
   };
 
+  // 自动保存函数
+  const triggerAutoSave = useCallback(() => {
+    if (editorRef.current && typeof editorRef.current.getContent === 'function') {
+      try {
+        const editor = editorRef.current;
+        const editorContent = editor.getContent();
+        const title = editor.dom.select('h1, h2, h3')[0]?.innerText || '无标题';
+
+        dispatch(updateCurrentArticle({
+          title: title.trim(),
+          content: editorContent,
+          updatedAt: new Date().toISOString()
+        }));
+      } catch (error) {
+        console.error('自动保存失败:', error);
+      }
+    }
+  }, [dispatch]);
+
   // 处理编辑器内容变化
   const handleEditorChange = (newContent, editor) => {
     setContent(newContent);
@@ -150,39 +160,54 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
       content: newContent,
       updatedAt: new Date().toISOString()
     }));
+
+    // 重置自动保存定时器
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // 设置新的自动保存定时器（30秒）
+    autoSaveTimerRef.current = setTimeout(() => {
+      triggerAutoSave();
+    }, 30000);
   };
 
   // 处理编辑器初始化
   const handleEditorInit = (editor) => {
-    editorRef.current = editor;
-    setIsEditorReady(true);
-
-    // 验证编辑器对象
-    if (!editor || typeof editor.focus !== 'function') {
-      console.error('编辑器对象无效或API不可用');
-      return;
-    }
-
-    // 如果有初始内容，设置到编辑器
-    if (initialContent) {
-      try {
-        editor.setContent(initialContent);
-        calculateStats(initialContent);
-      } catch (error) {
-        console.error('设置初始内容失败:', error);
-      }
-    }
-
-    // 设置焦点
+    // 延迟验证，确保编辑器完全初始化
     setTimeout(() => {
-      try {
-        if (editor && typeof editor.focus === 'function') {
-          editor.focus();
-        }
-      } catch (error) {
-        console.error('设置焦点失败:', error);
+      // 验证编辑器对象
+      if (!editor || typeof editor.focus !== 'function') {
+        console.error('编辑器对象无效或API不可用');
+        // 如果编辑器API不可用，可能是只读模式，仍然标记为已初始化
+        setIsEditorReady(true);
+        return;
       }
-    }, 100);
+
+      editorRef.current = editor;
+      setIsEditorReady(true);
+
+      // 如果有初始内容，设置到编辑器
+      if (initialContent) {
+        try {
+          editor.setContent(initialContent);
+          calculateStats(initialContent);
+        } catch (error) {
+          console.error('设置初始内容失败:', error);
+        }
+      }
+
+      // 设置焦点
+      setTimeout(() => {
+        try {
+          if (editor && typeof editor.focus === 'function') {
+            editor.focus();
+          }
+        } catch (error) {
+          console.error('设置焦点失败:', error);
+        }
+      }, 100);
+    }, 500); // 增加延迟时间确保编辑器完全初始化
   };
 
   // 监听外部内容变化
