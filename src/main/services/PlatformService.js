@@ -170,8 +170,21 @@ class PlatformService {
         };
       }
 
+      // 过滤掉数据库中不存在的字段
+      const allowedFields = [
+        'name', 'display_name', 'icon_url', 'base_url', 'login_url', 'publish_url',
+        'config_schema', 'is_active', 'priority'
+      ];
+
+      const filteredData = {};
+      Object.keys(updateData).forEach(key => {
+        if (allowedFields.includes(key)) {
+          filteredData[key] = updateData[key];
+        }
+      });
+
       // 验证更新数据
-      const validationResult = this.validatePlatformConfig(updateData);
+      const validationResult = this.validatePlatformConfig(filteredData);
       if (!validationResult.valid) {
         return {
           success: false,
@@ -181,7 +194,7 @@ class PlatformService {
       }
 
       // 更新平台配置
-      const updated = await this.platformModel.update(id, updateData);
+      const updated = await this.platformModel.update(id, filteredData);
       if (!updated) {
         return {
           success: false,
@@ -227,8 +240,8 @@ class PlatformService {
       }
 
       const platform = await this.platformModel.create({
-        name: platformData.slug, // 使用slug作为name
-        display_name: platformData.name, // 使用name作为display_name
+        name: platformData.name, // 使用name字段作为标识符
+        display_name: platformData.display_name, // 使用display_name字段作为显示名称
         icon_url: platformData.icon || '',
         base_url: platformData.base_url || '',
         login_url: platformData.login_url || '',
@@ -600,46 +613,46 @@ class PlatformService {
    * 验证平台配置
    */
   validatePlatformConfig(platformData) {
-    // 名称验证
+    // 标识符验证（使用name字段作为标识符）
     if (!platformData.name || platformData.name.trim().length === 0) {
       return {
         valid: false,
         error: 'name_required',
-        message: '平台名称不能为空'
-      };
-    }
-
-    if (platformData.name.length > 100) {
-      return {
-        valid: false,
-        error: 'name_too_long',
-        message: '平台名称不能超过100个字符'
-      };
-    }
-
-    // 标识符验证
-    if (!platformData.slug || platformData.slug.trim().length === 0) {
-      return {
-        valid: false,
-        error: 'slug_required',
         message: '平台标识符不能为空'
       };
     }
 
     // 验证标识符格式（只能包含字母、数字、下划线和连字符）
-    if (!/^[a-zA-Z0-9_-]+$/.test(platformData.slug)) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(platformData.name)) {
       return {
         valid: false,
-        error: 'slug_invalid',
+        error: 'name_invalid',
         message: '平台标识符只能包含字母、数字、下划线和连字符'
       };
     }
 
-    if (platformData.slug.length > 50) {
+    if (platformData.name.length > 50) {
       return {
         valid: false,
-        error: 'slug_too_long',
+        error: 'name_too_long',
         message: '平台标识符不能超过50个字符'
+      };
+    }
+
+    // 显示名称验证
+    if (!platformData.display_name || platformData.display_name.trim().length === 0) {
+      return {
+        valid: false,
+        error: 'display_name_required',
+        message: '平台名称不能为空'
+      };
+    }
+
+    if (platformData.display_name.length > 100) {
+      return {
+        valid: false,
+        error: 'display_name_too_long',
+        message: '平台名称不能超过100个字符'
       };
     }
 
@@ -911,6 +924,52 @@ class PlatformService {
         success: false,
         error: error.message,
         message: '初始化默认平台失败'
+      };
+    }
+  }
+
+  /**
+   * 切换平台启用/禁用状态
+   */
+  async togglePlatformActive(id, isActive) {
+    try {
+      // 验证平台是否存在
+      const existing = await this.platformModel.findById(id);
+      if (!existing) {
+        return {
+          success: false,
+          error: 'Platform not found',
+          message: '平台不存在'
+        };
+      }
+
+      // 调用数据库模型的toggleActive方法
+      const updated = await this.platformModel.toggleActive(id, isActive);
+      if (!updated) {
+        return {
+          success: false,
+          error: 'Update failed',
+          message: '更新平台状态失败'
+        };
+      }
+
+      // 清除缓存
+      this.clearCache(id);
+
+      // 获取更新后的平台配置
+      const platform = await this.platformModel.findById(id);
+
+      return {
+        success: true,
+        data: platform,
+        message: `平台已${isActive ? '启用' : '禁用'}`
+      };
+    } catch (error) {
+      console.error('切换平台状态失败:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: '切换平台状态失败'
       };
     }
   }
