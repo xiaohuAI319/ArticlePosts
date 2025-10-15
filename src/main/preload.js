@@ -36,7 +36,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (id, updateData) => ipcRenderer.invoke('articles:update', id, updateData),
 
     // 删除文章
-    delete: (id) => ipcRenderer.invoke('articles:delete', id)
+    delete: (id) => ipcRenderer.invoke('articles:delete', id),
+
+    // 自动保存文章
+    autoSave: (articleData) => ipcRenderer.invoke('articles:autoSave', articleData),
+
+    // 发布文章
+    publish: (id, platformIds) => ipcRenderer.invoke('articles:publish', id, platformIds),
+
+    // 获取发布状态
+    getPublishStatus: (id) => ipcRenderer.invoke('articles:getPublishStatus', id),
+
+    // 取消发布
+    cancelPublish: (id, platformId) => ipcRenderer.invoke('articles:cancelPublish', id, platformId)
   },
 
   // 平台相关API
@@ -45,7 +57,70 @@ contextBridge.exposeInMainWorld('electronAPI', {
     findAll: (activeOnly) => ipcRenderer.invoke('platforms:findAll', activeOnly),
 
     // 获取可用平台
-    getAvailable: () => ipcRenderer.invoke('platforms:getAvailable')
+    getAvailable: () => ipcRenderer.invoke('platforms:getAvailable'),
+
+    // 根据ID获取平台详情
+    findById: (id) => ipcRenderer.invoke('platforms:findById', id),
+
+    // 创建平台
+    create: (platformData) => ipcRenderer.invoke('platforms:create', platformData),
+
+    // 更新平台
+    update: (id, updateData) => ipcRenderer.invoke('platforms:update', id, updateData),
+
+    // 删除平台
+    delete: (id) => ipcRenderer.invoke('platforms:delete', id),
+
+    // 检查平台状态
+    checkStatus: (id) => ipcRenderer.invoke('platforms:checkStatus', id),
+
+    // 获取平台登录配置
+    getLoginConfig: (id) => ipcRenderer.invoke('platforms:getLoginConfig', id),
+
+    // 获取平台发布配置
+    getPublishConfig: (id) => ipcRenderer.invoke('platforms:getPublishConfig', id),
+
+    // 检查所有平台状态
+    checkAllStatus: () => ipcRenderer.invoke('platforms:checkAllStatus'),
+
+    // 切换平台启用/禁用状态
+    toggleActive: (id, isActive) => ipcRenderer.invoke('platforms:toggleActive', id, isActive)
+  },
+
+  // 登录会话相关API
+  sessions: {
+    // 创建登录会话
+    create: (platformId, sessionData) => ipcRenderer.invoke('sessions:create', platformId, sessionData),
+
+    // 获取平台的活跃会话
+    getActive: (platformId) => ipcRenderer.invoke('sessions:getActive', platformId),
+
+    // 根据ID获取会话详情
+    getById: (sessionId) => ipcRenderer.invoke('sessions:getById', sessionId),
+
+    // 更新会话使用时间
+    updateUsage: (sessionId) => ipcRenderer.invoke('sessions:updateUsage', sessionId),
+
+    // 检查会话是否过期
+    checkExpiry: (sessionId) => ipcRenderer.invoke('sessions:checkExpiry', sessionId),
+
+    // 刷新会话
+    refresh: (sessionId, newCookies) => ipcRenderer.invoke('sessions:refresh', sessionId, newCookies),
+
+    // 停用会话
+    deactivate: (sessionId) => ipcRenderer.invoke('sessions:deactivate', sessionId),
+
+    // 删除会话
+    delete: (sessionId) => ipcRenderer.invoke('sessions:delete', sessionId),
+
+    // 清理过期会话
+    cleanupExpired: () => ipcRenderer.invoke('sessions:cleanupExpired'),
+
+    // 获取会话统计信息
+    getStats: (platformId) => ipcRenderer.invoke('sessions:getStats', platformId),
+
+    // 获取最佳可用会话
+    getBest: (platformId) => ipcRenderer.invoke('sessions:getBest', platformId)
   },
 
   // 菜单事件监听

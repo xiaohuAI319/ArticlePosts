@@ -9,53 +9,104 @@ if (isDev) {
 
 // 导入数据库服务
 const { getDatabaseService, DatabaseService } = require('./database/DatabaseService');
+// 导入文章管理服务
+const ArticleService = require('./services/ArticleService');
+// 导入平台配置服务
+const PlatformService = require('./services/PlatformService');
+// 导入登录会话管理服务
+const LoginSessionService = require('./services/LoginSessionService');
 
 // 保持对窗口对象的全局引用，如果不这样做，当JavaScript对象被垃圾回收时，窗口将自动关闭
 let mainWindow;
+// 创建文章管理服务实例
+const articleService = new ArticleService();
+// 创建平台配置服务实例
+const platformService = new PlatformService();
+// 创建登录会话管理服务实例
+const loginSessionService = new LoginSessionService();
 
 function createWindow() {
-  // 创建浏览器窗口
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      enableRemoteModule: false,
-      preload: path.join(__dirname, 'preload.js'),
-      // 添加安全的内容安全策略
-      webSecurity: true,
-      allowRunningInsecureContent: false,
-      experimentalFeatures: false
-    },
-    icon: path.join(__dirname, '../assets/icon.png'), // 应用图标
-    show: false, // 先不显示，等加载完成后再显示
-    titleBarStyle: 'default' // 标题栏样式
-  });
+  console.log('正在创建应用窗口...');
+
+  try {
+    // 创建浏览器窗口
+    mainWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      minWidth: 800,
+      minHeight: 600,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        enableRemoteModule: false,
+        preload: path.join(__dirname, 'preload.js'),
+        // 添加安全的内容安全策略
+        webSecurity: true,
+        allowRunningInsecureContent: false,
+        experimentalFeatures: false
+      },
+      // icon: path.join(__dirname, '../assets/icon.png'), // 应用图标 - 暂时注释掉，文件不存在
+      show: false, // 先不显示，等加载完成后再显示
+      titleBarStyle: 'default' // 标题栏样式
+    });
+
+    console.log('应用窗口创建成功');
+  } catch (error) {
+    console.error('创建窗口失败:', error);
+    throw error;
+  }
 
   // 加载应用
   const startUrl = isDev
     ? 'http://localhost:3000'
     : `file://${path.join(__dirname, '../../build/index.html')}`;
 
+  console.log('正在加载应用URL:', startUrl);
+
   mainWindow.loadURL(startUrl);
 
   // 当窗口准备好显示时显示窗口
   mainWindow.once('ready-to-show', () => {
+    console.log('应用窗口准备显示');
     mainWindow.show();
 
     // 开发模式下打开开发者工具
     if (isDev) {
+      console.log('打开开发者工具');
       mainWindow.webContents.openDevTools();
     }
   });
 
   // 当窗口关闭时触发
   mainWindow.on('closed', () => {
+    console.log('应用窗口已关闭');
     // 取消引用window对象，如果你的应用支持多窗口的话，通常会把多个window对象存放在一个数组里面，与此同时，你应该删除相应的元素
     mainWindow = null;
+  });
+
+  // 处理窗口加载事件
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('页面加载完成');
+  });
+
+  // 处理窗口加载失败事件
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('页面加载失败:', errorCode, errorDescription);
+  });
+
+  // 处理窗口崩溃事件
+  mainWindow.webContents.on('crashed', (event, killed) => {
+    console.error('渲染进程崩溃:', killed ? '被杀死' : '崩溃');
+  });
+
+  // 处理窗口无响应事件
+  mainWindow.webContents.on('unresponsive', () => {
+    console.warn('渲染进程无响应');
+  });
+
+  // 处理窗口恢复响应事件
+  mainWindow.webContents.on('responsive', () => {
+    console.log('渲染进程恢复响应');
   });
 
   // 开发环境禁用CSP，避免阻止资源加载
@@ -87,6 +138,16 @@ app.whenReady().then(async () => {
     const dbService = getDatabaseService();
     await dbService.initialize();
     console.log('数据库初始化完成');
+
+    // 初始化平台服务
+    console.log('正在初始化平台服务...');
+    await platformService.initialize();
+    console.log('平台服务初始化完成');
+
+    // 初始化登录会话服务
+    console.log('正在初始化登录会话服务...');
+    await loginSessionService.initialize();
+    console.log('登录会话服务初始化完成');
 
     // 创建应用窗口
     createWindow();
@@ -251,12 +312,10 @@ ipcMain.handle('db:health', async () => {
   }
 });
 
-// 文章相关的IPC处理
+// 文章相关的IPC处理 - 使用ArticleService
 ipcMain.handle('articles:create', async (event, articleData) => {
   try {
-    const dbService = getDatabaseService();
-    const articleModel = dbService.getModel('article');
-    return articleModel.create(articleData);
+    return await articleService.createArticle(articleData);
   } catch (error) {
     console.error('创建文章失败:', error);
     throw error;
@@ -265,9 +324,7 @@ ipcMain.handle('articles:create', async (event, articleData) => {
 
 ipcMain.handle('articles:findAll', async (event, options = {}) => {
   try {
-    const dbService = getDatabaseService();
-    const articleModel = dbService.getModel('article');
-    return articleModel.findAll(options);
+    return await articleService.getArticles(options);
   } catch (error) {
     console.error('获取文章列表失败:', error);
     throw error;
@@ -276,9 +333,7 @@ ipcMain.handle('articles:findAll', async (event, options = {}) => {
 
 ipcMain.handle('articles:findById', async (event, id) => {
   try {
-    const dbService = getDatabaseService();
-    const articleModel = dbService.getModel('article');
-    return articleModel.findById(id);
+    return await articleService.getArticle(id);
   } catch (error) {
     console.error('获取文章失败:', error);
     throw error;
@@ -287,9 +342,7 @@ ipcMain.handle('articles:findById', async (event, id) => {
 
 ipcMain.handle('articles:update', async (event, id, updateData) => {
   try {
-    const dbService = getDatabaseService();
-    const articleModel = dbService.getModel('article');
-    return articleModel.update(id, updateData);
+    return await articleService.updateArticle(id, updateData);
   } catch (error) {
     console.error('更新文章失败:', error);
     throw error;
@@ -298,21 +351,78 @@ ipcMain.handle('articles:update', async (event, id, updateData) => {
 
 ipcMain.handle('articles:delete', async (event, id) => {
   try {
-    const dbService = getDatabaseService();
-    const articleModel = dbService.getModel('article');
-    return articleModel.delete(id);
+    return await articleService.deleteArticle(id);
   } catch (error) {
     console.error('删除文章失败:', error);
     throw error;
   }
 });
 
-// 平台相关的IPC处理
+ipcMain.handle('articles:autoSave', async (event, articleData) => {
+  try {
+    // 如果文章有ID且不是临时ID，更新；否则创建新文章
+    if (articleData.id && typeof articleData.id === 'string' && !articleData.id.startsWith('draft_')) {
+      return await articleService.updateArticle(articleData.id, articleData);
+    } else {
+      // 创建新文章时移除临时ID（如果存在）
+      const { id, ...articleDataWithoutId } = articleData;
+      return await articleService.createArticle(articleDataWithoutId);
+    }
+  } catch (error) {
+    console.error('自动保存文章失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('articles:publish', async (event, id, platformIds) => {
+  try {
+    // TODO: 实现文章发布功能
+    // 这里暂时返回成功状态，后续会在平台集成中实现
+    return {
+      success: true,
+      message: '文章发布功能将在后续版本中实现',
+      data: {
+        id,
+        platformIds,
+        status: 'pending'
+      }
+    };
+  } catch (error) {
+    console.error('发布文章失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('articles:getPublishStatus', async (event, id) => {
+  try {
+    // TODO: 实现获取发布状态功能
+    return {
+      success: true,
+      data: []
+    };
+  } catch (error) {
+    console.error('获取发布状态失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('articles:cancelPublish', async (event, id, platformId) => {
+  try {
+    // TODO: 实现取消发布功能
+    return {
+      success: true,
+      message: '取消发布功能将在后续版本中实现'
+    };
+  } catch (error) {
+    console.error('取消发布失败:', error);
+    throw error;
+  }
+});
+
+// 平台相关的IPC处理 - 使用PlatformService
 ipcMain.handle('platforms:findAll', async (event, activeOnly = true) => {
   try {
-    const dbService = getDatabaseService();
-    const platformModel = dbService.getModel('platform');
-    return platformModel.findAll(activeOnly);
+    return await platformService.getAllPlatforms(activeOnly);
   } catch (error) {
     console.error('获取平台列表失败:', error);
     throw error;
@@ -321,11 +431,191 @@ ipcMain.handle('platforms:findAll', async (event, activeOnly = true) => {
 
 ipcMain.handle('platforms:getAvailable', async () => {
   try {
-    const dbService = getDatabaseService();
-    const platformModel = dbService.getModel('platform');
-    return platformModel.getAvailable();
+    return await platformService.getAvailablePlatforms();
   } catch (error) {
     console.error('获取可用平台失败:', error);
+    throw error;
+  }
+});
+
+// 新增平台管理IPC处理程序
+ipcMain.handle('platforms:findById', async (event, id) => {
+  try {
+    return await platformService.getPlatform(id);
+  } catch (error) {
+    console.error('获取平台详情失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('platforms:create', async (event, platformData) => {
+  try {
+    return await platformService.createPlatform(platformData);
+  } catch (error) {
+    console.error('创建平台失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('platforms:update', async (event, id, updateData) => {
+  try {
+    return await platformService.updatePlatform(id, updateData);
+  } catch (error) {
+    console.error('更新平台失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('platforms:delete', async (event, id) => {
+  try {
+    return await platformService.deletePlatform(id);
+  } catch (error) {
+    console.error('删除平台失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('platforms:checkStatus', async (event, id) => {
+  try {
+    return await platformService.checkPlatformStatus(id);
+  } catch (error) {
+    console.error('检查平台状态失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('platforms:getLoginConfig', async (event, id) => {
+  try {
+    return await platformService.getLoginConfig(id);
+  } catch (error) {
+    console.error('获取平台登录配置失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('platforms:getPublishConfig', async (event, id) => {
+  try {
+    return await platformService.getPublishConfig(id);
+  } catch (error) {
+    console.error('获取平台发布配置失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('platforms:checkAllStatus', async () => {
+  try {
+    return await platformService.checkAllPlatformsStatus();
+  } catch (error) {
+    console.error('检查所有平台状态失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('platforms:toggleActive', async (event, id, isActive) => {
+  try {
+    return await platformService.togglePlatformActive(id, isActive);
+  } catch (error) {
+    console.error('切换平台状态失败:', error);
+    throw error;
+  }
+});
+
+// 登录会话相关的IPC处理程序 - 使用LoginSessionService
+ipcMain.handle('sessions:create', async (event, platformId, sessionData) => {
+  try {
+    return await loginSessionService.createSession(platformId, sessionData);
+  } catch (error) {
+    console.error('创建登录会话失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('sessions:getActive', async (event, platformId) => {
+  try {
+    return await loginSessionService.getActiveSessions(platformId);
+  } catch (error) {
+    console.error('获取活跃会话失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('sessions:getById', async (event, sessionId) => {
+  try {
+    return await loginSessionService.getSessionById(sessionId);
+  } catch (error) {
+    console.error('获取会话详情失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('sessions:updateUsage', async (event, sessionId) => {
+  try {
+    return await loginSessionService.updateSessionUsage(sessionId);
+  } catch (error) {
+    console.error('更新会话使用时间失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('sessions:checkExpiry', async (event, sessionId) => {
+  try {
+    return await loginSessionService.checkSessionExpiry(sessionId);
+  } catch (error) {
+    console.error('检查会话过期状态失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('sessions:refresh', async (event, sessionId, newCookies) => {
+  try {
+    return await loginSessionService.refreshSession(sessionId, newCookies);
+  } catch (error) {
+    console.error('刷新会话失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('sessions:deactivate', async (event, sessionId) => {
+  try {
+    return await loginSessionService.deactivateSession(sessionId);
+  } catch (error) {
+    console.error('停用会话失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('sessions:delete', async (event, sessionId) => {
+  try {
+    return await loginSessionService.deleteSession(sessionId);
+  } catch (error) {
+    console.error('删除会话失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('sessions:cleanupExpired', async () => {
+  try {
+    return await loginSessionService.cleanupExpiredSessions();
+  } catch (error) {
+    console.error('清理过期会话失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('sessions:getStats', async (event, platformId) => {
+  try {
+    return await loginSessionService.getSessionStats(platformId);
+  } catch (error) {
+    console.error('获取会话统计信息失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('sessions:getBest', async (event, platformId) => {
+  try {
+    return await loginSessionService.getBestSession(platformId);
+  } catch (error) {
+    console.error('获取最佳会话失败:', error);
     throw error;
   }
 });
