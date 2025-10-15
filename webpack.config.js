@@ -48,8 +48,11 @@ module.exports = {
     hot: true,
     open: false,
     historyApiFallback: true,
-  },
-  resolve: {
-    extensions: ['.js', '.jsx'],
+    client: {
+      logging: 'warn', // 减少webpack-dev-server的日志输出
+    },
+    devMiddleware: {
+      stats: 'minimal', // 最小化统计信息
+    },
   },
 };

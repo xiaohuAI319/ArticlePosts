@@ -17,17 +17,27 @@ function App() {
 
   // 应用初始化
   useEffect(() => {
+    let mounted = true;
+
     const initApp = async () => {
       try {
         await dispatch(initializeApp()).unwrap();
-        message.success('应用启动成功');
+        if (mounted) {
+          message.success('应用启动成功');
+        }
       } catch (error) {
         console.error('应用初始化失败:', error);
-        message.error('应用启动失败，请重试');
+        if (mounted) {
+          message.error('应用启动失败，请重试');
+        }
       }
     };
 
     initApp();
+
+    return () => {
+      mounted = false;
+    };
   }, [dispatch]);
 
   // 监听菜单事件

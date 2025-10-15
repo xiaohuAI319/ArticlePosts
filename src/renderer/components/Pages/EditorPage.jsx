@@ -1,22 +1,49 @@
 import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { Card, Row, Col, Button, message } from 'antd';
+import { Card, Row, Col, Button, message, Input } from 'antd';
 import { PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import TinyMCEEditor from '../Editor/TinyMCEEditor';
 import ArticlePreview from '../Article/ArticlePreview';
-import { createNewArticle, updateCurrentArticle } from '../../store/slices/articleSlice';
+import { createNewArticle, updateCurrentArticle, autoSaveArticle, fetchArticles, setCurrentArticle } from '../../store/slices/articleSlice';
 import './EditorPage.css';
+
+const { TextArea } = Input;
 
 function EditorPage() {
   const dispatch = useDispatch();
-  const { currentArticle, isLoading } = useSelector(state => state.articles);
+  const { currentArticle, saving, editorState } = useSelector(state => state.articles);
   const [showPreview, setShowPreview] = React.useState(false);
 
-  // 初始化新文章
+  // 初始化：先尝试加载最近的文章，如果没有则创建新文章
   useEffect(() => {
-    if (!currentArticle) {
-      dispatch(createNewArticle());
-    }
+    const initializeArticle = async () => {
+      if (!currentArticle) {
+        try {
+          // 尝试获取最近的文章（按更新时间倒序，只获取1篇）
+          const result = await dispatch(fetchArticles({
+            limit: 1,
+            offset: 0,
+            orderBy: 'updated_at',
+            order: 'DESC'
+          })).unwrap();
+
+          if (result.success && result.data?.articles?.length > 0) {
+            // 加载最近的文章
+            const recentArticle = result.data.articles[0];
+            dispatch(setCurrentArticle(recentArticle));
+          } else {
+            // 没有文章，创建新文章
+            dispatch(createNewArticle());
+          }
+        } catch (error) {
+          console.error('加载文章失败:', error);
+          // 出错时创建新文章
+          dispatch(createNewArticle());
+        }
+      }
+    };
+
+    initializeArticle();
   }, [currentArticle, dispatch]);
 
   // 创建新文章
@@ -26,15 +53,66 @@ function EditorPage() {
   };
 
   // 保存文章
-  const handleSaveArticle = () => {
-    if (currentArticle?.title && currentArticle?.content) {
-      dispatch(updateCurrentArticle({
-        ...currentArticle,
-        updatedAt: new Date().toISOString()
-      }));
-      message.success('文章已保存');
+  const handleSaveArticle = async () => {
+    // 检查是否有有效的标题和内容
+    const hasValidTitle = currentArticle?.title && currentArticle.title !== '无标题';
+    const hasValidContent = currentArticle?.content && currentArticle.content.trim() !== '';
+
+    if (hasValidTitle && hasValidContent) {
+      try {
+        const result = await dispatch(autoSaveArticle({
+          ...currentArticle,
+          updatedAt: new Date().toISOString()
+        })).unwrap();
+
+        if (result.success) {
+          message.success('文章已保存');
+          // 更新currentArticle以反映最新的保存时间
+          const savedArticle = result.data || result;
+          if (savedArticle) {
+            dispatch(setCurrentArticle(savedArticle));
+          }
+        } else {
+          message.error(result.message || '保存失败，请重试');
+        }
+      } catch (error) {
+        console.error('保存失败:', error);
+        message.error('保存失败，请重试');
+      }
     } else {
-      message.warning('请先编写文章内容');
+      if (!hasValidTitle && !hasValidContent) {
+        message.warning('请先填写标题并编写文章内容');
+      } else if (!hasValidTitle) {
+        message.warning('请先填写有效的文章标题');
+      } else {
+        message.warning('请先编写文章内容');
+      }
+    }
+  };
+
+  // 标题变化处理
+  const handleTitleChange = (e) => {
+    const title = e.target.value.trim();
+    dispatch(updateCurrentArticle({
+      ...currentArticle,
+      title: title,
+      updatedAt: new Date().toISOString()
+    }));
+  };
+
+  // 标题框获得焦点时的处理
+  const handleTitleFocus = (e) => {
+    // 如果标题是默认的"无标题"，则清空
+    if (e.target.value === '无标题') {
+      e.target.select();
+    }
+  };
+
+  // 标题框按下键盘时的处理
+  const handleTitleKeyDown = (e) => {
+    // 如果标题是"无标题"且用户开始输入，则清空
+    if (e.target.value === '无标题' && e.key.length === 1) {
+      e.target.value = '';
     }
   };
 
@@ -42,6 +120,26 @@ function EditorPage() {
   const togglePreview = () => {
     setShowPreview(!showPreview);
   };
+
+  
+  // 全局快捷键处理
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Ctrl+S 保存
+      if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault();
+        handleSaveArticle();
+      }
+    };
+
+    // 添加全局事件监听器
+    document.addEventListener('keydown', handleKeyDown);
+
+    // 清理函数
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentArticle, dispatch]);
 
   return (
     <div className="page-container editor-page">
@@ -64,7 +162,7 @@ function EditorPage() {
             type="primary"
             icon={<SaveOutlined />}
             onClick={handleSaveArticle}
-            loading={isLoading}
+            loading={saving}
           >
             保存文章
           </Button>
@@ -78,6 +176,23 @@ function EditorPage() {
       </div>
 
       <div className="page-content">
+        {/* 标题输入区域 */}
+        <div className="title-section">
+          <Card className="title-card" styles={{ body: { padding: '16px' } }}>
+            <Input
+              placeholder="请输入文章标题"
+              value={currentArticle?.title || '无标题'}
+              onChange={handleTitleChange}
+              onFocus={handleTitleFocus}
+              onKeyDown={handleTitleKeyDown}
+              size="large"
+              maxLength={100}
+              showCount
+              style={{ fontSize: '18px', fontWeight: 'bold' }}
+            />
+          </Card>
+        </div>
+
         <Row gutter={[16, 16]} className="editor-row">
           {/* 编辑区域 */}
           <Col xs={24} md={showPreview ? 12 : 24} className="editor-col">
@@ -95,7 +210,7 @@ function EditorPage() {
                 </div>
               }
               className="editor-card"
-              styles={{ body: { padding: 0, height: '600px' } }}
+              styles={{ body: { padding: 0, height: '550px' } }}
             >
               {currentArticle ? (
                 <TinyMCEEditor
@@ -143,29 +258,19 @@ function EditorPage() {
           )}
         </Row>
 
-        {/* 快捷工具栏 */}
-        <div className="editor-toolbar">
-          <div className="toolbar-info">
-            {currentArticle && (
-              <span>
-                最后保存: {currentArticle.updatedAt
-                  ? new Date(currentArticle.updatedAt).toLocaleString('zh-CN')
-                  : '未保存'
-                }
-              </span>
-            )}
-          </div>
-          <div className="toolbar-actions">
-            <Button size="small" type="link" onClick={() => message.info('格式化功能开发中...')}>
-              格式化
-            </Button>
-            <Button size="small" type="link" onClick={() => message.info('导入功能开发中...')}>
-              导入
-            </Button>
-            <Button size="small" type="link" onClick={() => message.info('导出功能开发中...')}>
-              导出
-            </Button>
-          </div>
+        {/* 保存状态显示 */}
+        <div className="save-status">
+          {currentArticle && (
+            <span>
+              最后保存: {editorState?.lastSaved
+                ? (() => {
+                    const formattedTime = new Date(editorState.lastSaved).toLocaleString('zh-CN');
+                    return formattedTime;
+                  })()
+                : '未保存'
+              }
+            </span>
+          )}
         </div>
       </div>
     </div>

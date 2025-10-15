@@ -15,6 +15,8 @@ const ArticleService = require('./services/ArticleService');
 const PlatformService = require('./services/PlatformService');
 // 导入登录会话管理服务
 const LoginSessionService = require('./services/LoginSessionService');
+// 导入二维码服务
+const QRCodeService = require('./services/QRCodeService');
 
 // 保持对窗口对象的全局引用，如果不这样做，当JavaScript对象被垃圾回收时，窗口将自动关闭
 let mainWindow;
@@ -24,6 +26,8 @@ const articleService = new ArticleService();
 const platformService = new PlatformService();
 // 创建登录会话管理服务实例
 const loginSessionService = new LoginSessionService();
+// 创建二维码服务实例
+const qrCodeService = new QRCodeService();
 
 function createWindow() {
   console.log('正在创建应用窗口...');
@@ -148,6 +152,11 @@ app.whenReady().then(async () => {
     console.log('正在初始化登录会话服务...');
     await loginSessionService.initialize();
     console.log('登录会话服务初始化完成');
+
+    // 初始化二维码服务
+    console.log('正在初始化二维码服务...');
+    await qrCodeService.initialize();
+    console.log('二维码服务初始化完成');
 
     // 创建应用窗口
     createWindow();
@@ -616,6 +625,34 @@ ipcMain.handle('sessions:getBest', async (event, platformId) => {
     return await loginSessionService.getBestSession(platformId);
   } catch (error) {
     console.error('获取最佳会话失败:', error);
+    throw error;
+  }
+});
+
+// 二维码相关的IPC处理程序
+ipcMain.handle('qrCode:generate', async (event, loginUrl, options) => {
+  try {
+    return await qrCodeService.generateQRCode(loginUrl, options);
+  } catch (error) {
+    console.error('生成二维码失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('qrCode:checkStatus', async (event, sessionId) => {
+  try {
+    return await qrCodeService.checkQRCodeStatus(sessionId);
+  } catch (error) {
+    console.error('检查二维码状态失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('qrCode:cleanup', async () => {
+  try {
+    return await qrCodeService.cleanupExpiredSessions();
+  } catch (error) {
+    console.error('清理过期二维码失败:', error);
     throw error;
   }
 });

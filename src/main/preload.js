@@ -123,6 +123,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getBest: (platformId) => ipcRenderer.invoke('sessions:getBest', platformId)
   },
 
+  // 二维码相关API
+  qrCode: {
+    // 生成二维码
+    generate: (loginUrl, options) => ipcRenderer.invoke('qrCode:generate', loginUrl, options),
+
+    // 检查二维码状态
+    checkStatus: (sessionId) => ipcRenderer.invoke('qrCode:checkStatus', sessionId),
+
+    // 清理过期二维码
+    cleanup: () => ipcRenderer.invoke('qrCode:cleanup')
+  },
+
   // 菜单事件监听
   onMenuAction: (callback) => {
     const menuActions = [

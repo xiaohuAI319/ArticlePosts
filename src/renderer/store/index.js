@@ -7,12 +7,13 @@ import { combineReducers } from '@reduxjs/toolkit';
 import appSlice from './slices/appSlice';
 import articleSlice from './slices/articleSlice';
 import platformSlice from './slices/platformSlice';
+import authSlice from './slices/authSlice';
 
 // 持久化配置
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['app', 'platforms'], // 只持久化应用状态和平台配置
+  whitelist: ['app', 'platforms', 'auth'], // 持久化应用状态、平台配置和认证状态
 };
 
 // 合并所有reducer
@@ -20,6 +21,7 @@ const rootReducer = combineReducers({
   app: appSlice,
   articles: articleSlice,
   platforms: platformSlice,
+  auth: authSlice,
 });
 
 // 创建持久化reducer

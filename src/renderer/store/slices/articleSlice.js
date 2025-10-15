@@ -1,20 +1,19 @@
 /**
- * 文章状态管理 - T006状态管理设置
+ * 文章状态管理 - T009文章管理服务集成
  * 管理文章的创建、编辑、发布等状态
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { articleApi } from '../../services/httpService';
 
 // 异步thunk：获取文章列表
 export const fetchArticles = createAsyncThunk(
   'articles/fetchArticles',
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await articleApi.getArticles(params);
+      const response = await window.electronAPI.articles.findAll(params);
       return response;
     } catch (error) {
-      return rejectWithValue(error.error?.message || '获取文章列表失败');
+      return rejectWithValue(error.message || '获取文章列表失败');
     }
   }
 );
@@ -24,10 +23,10 @@ export const fetchArticleById = createAsyncThunk(
   'articles/fetchArticleById',
   async (id, { rejectWithValue }) => {
     try {
-      const response = await articleApi.getArticle(id);
+      const response = await window.electronAPI.articles.findById(id);
       return response;
     } catch (error) {
-      return rejectWithValue(error.error?.message || '获取文章详情失败');
+      return rejectWithValue(error.message || '获取文章详情失败');
     }
   }
 );
@@ -37,10 +36,10 @@ export const createArticle = createAsyncThunk(
   'articles/createArticle',
   async (articleData, { rejectWithValue }) => {
     try {
-      const response = await articleApi.createArticle(articleData);
+      const response = await window.electronAPI.articles.create(articleData);
       return response;
     } catch (error) {
-      return rejectWithValue(error.error?.message || '创建文章失败');
+      return rejectWithValue(error.message || '创建文章失败');
     }
   }
 );
@@ -50,10 +49,10 @@ export const updateArticle = createAsyncThunk(
   'articles/updateArticle',
   async ({ id, data }, { rejectWithValue }) => {
     try {
-      const response = await articleApi.updateArticle(id, data);
+      const response = await window.electronAPI.articles.update(id, data);
       return { ...response, id };
     } catch (error) {
-      return rejectWithValue(error.error?.message || '更新文章失败');
+      return rejectWithValue(error.message || '更新文章失败');
     }
   }
 );
@@ -63,10 +62,10 @@ export const deleteArticle = createAsyncThunk(
   'articles/deleteArticle',
   async (id, { rejectWithValue }) => {
     try {
-      await articleApi.deleteArticle(id);
+      await window.electronAPI.articles.delete(id);
       return id;
     } catch (error) {
-      return rejectWithValue(error.error?.message || '删除文章失败');
+      return rejectWithValue(error.message || '删除文章失败');
     }
   }
 );
@@ -76,10 +75,10 @@ export const publishArticle = createAsyncThunk(
   'articles/publishArticle',
   async ({ id, platformIds }, { rejectWithValue }) => {
     try {
-      const response = await articleApi.publishArticle(id, platformIds);
+      const response = await window.electronAPI.articles.publish(id, platformIds);
       return { ...response, id, platformIds };
     } catch (error) {
-      return rejectWithValue(error.error?.message || '发布文章失败');
+      return rejectWithValue(error.message || '发布文章失败');
     }
   }
 );
@@ -89,10 +88,10 @@ export const fetchPublishStatus = createAsyncThunk(
   'articles/fetchPublishStatus',
   async (id, { rejectWithValue }) => {
     try {
-      const response = await articleApi.getPublishStatus(id);
+      const response = await window.electronAPI.articles.getPublishStatus(id);
       return { ...response, id };
     } catch (error) {
-      return rejectWithValue(error.error?.message || '获取发布状态失败');
+      return rejectWithValue(error.message || '获取发布状态失败');
     }
   }
 );
@@ -102,10 +101,23 @@ export const cancelPublish = createAsyncThunk(
   'articles/cancelPublish',
   async ({ id, platformId }, { rejectWithValue }) => {
     try {
-      await articleApi.cancelPublish(id, platformId);
+      await window.electronAPI.articles.cancelPublish(id, platformId);
       return { id, platformId };
     } catch (error) {
-      return rejectWithValue(error.error?.message || '取消发布失败');
+      return rejectWithValue(error.message || '取消发布失败');
+    }
+  }
+);
+
+// 异步thunk：自动保存草稿
+export const autoSaveArticle = createAsyncThunk(
+  'articles/autoSaveArticle',
+  async (articleData, { rejectWithValue }) => {
+    try {
+      const response = await window.electronAPI.articles.autoSave(articleData);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || '自动保存失败');
     }
   }
 );
@@ -546,6 +558,53 @@ const articleSlice = createSlice({
         if (state.publishStatus[id] && state.publishStatus[id][platformId]) {
           delete state.publishStatus[id][platformId];
         }
+      })
+
+      // 自动保存
+      .addCase(autoSaveArticle.pending, (state) => {
+        // 手动保存时显示loading状态
+        state.saving = true;
+        state.error = null;
+      })
+      .addCase(autoSaveArticle.fulfilled, (state, action) => {
+        const article = action.payload.data || action.payload;
+
+        if (article) {
+          // 如果是新创建的文章，更新currentArticle的ID
+          if (state.currentArticle && typeof state.currentArticle.id === 'string' && state.currentArticle.id.startsWith('draft_')) {
+            state.currentArticle.id = article.id;
+            state.draftArticle.id = article.id;
+          }
+
+          // 更新currentArticle的完整信息，包括updatedAt
+          state.currentArticle = { ...state.currentArticle, ...article };
+          state.draftArticle = { ...state.draftArticle, ...article };
+
+          // 更新最后保存时间 - 使用多个时间源确保正确性
+          let savedTime = article.updatedAt || new Date().toISOString();
+
+          // 如果是数字时间戳，转换为ISO格式
+          if (article.updated_at && typeof article.updated_at === 'number') {
+            savedTime = new Date(article.updated_at).toISOString();
+          } else if (article.updated_at && typeof article.updated_at === 'string') {
+            savedTime = article.updated_at;
+          }
+
+          state.editorState.lastSaved = savedTime;
+          state.editorState.dirty = false;
+
+          // 确保currentArticle也有正确的时间
+          if (!state.currentArticle.updatedAt) {
+            state.currentArticle.updatedAt = savedTime;
+          }
+        }
+        // 清除保存状态
+        state.saving = false;
+      })
+      .addCase(autoSaveArticle.rejected, (state, action) => {
+        // 自动保存失败，记录错误但清除保存状态
+        console.error('自动保存失败:', action.payload);
+        state.saving = false;
       });
   },
 });
@@ -573,5 +632,6 @@ export const {
   redo,
   clearHistory,
 } = articleSlice.actions;
+
 
 export default articleSlice.reducer;

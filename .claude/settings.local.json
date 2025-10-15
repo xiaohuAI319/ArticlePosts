@@ -30,7 +30,11 @@
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
       "Bash(npm install:*)",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "Bash(pwsh:*)",
+      "Bash(cmd:*)",
+      "Bash(curl:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

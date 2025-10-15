@@ -1,17 +1,42 @@
 {
-  "testEnvironment": "node",
-  "testMatch": [
-    "**/tests/**/*.test.js",
-    "**/__tests__/**/*.js"
-  ],
-  "collectCoverageFrom": [
-    "src/main/**/*.js",
-    "!src/main/**/*.test.js",
-    "!src/main/database/test.js"
+  "projects": [
+    {
+      "displayName": "Main Process Tests",
+      "testEnvironment": "node",
+      "testMatch": [
+        "**/tests/main/**/*.test.js",
+        "**/__tests__/**/*.js"
+      ],
+      "collectCoverageFrom": [
+        "src/main/**/*.js",
+        "!src/main/**/*.test.js",
+        "!src/main/database/test.js"
+      ],
+      "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"]
+    },
+    {
+      "displayName": "Renderer Process Tests",
+      "testEnvironment": "jsdom",
+      "testMatch": [
+        "**/tests/renderer/**/*.test.js",
+        "**/tests/renderer/**/*.test.jsx"
+      ],
+      "setupFilesAfterEnv": ["<rootDir>/tests/setup.js", "<rootDir>/tests/renderer-setup.js"],
+      "moduleNameMapper": {
+        "\\.(css|less|scss|sass)$": "identity-obj-proxy"
+      },
+      "collectCoverageFrom": [
+        "src/renderer/**/*.{js,jsx}",
+        "!src/renderer/**/*.test.js",
+        "!src/renderer/**/*.test.jsx"
+      ],
+      "transform": {
+        "^.+\\.(js|jsx)$": "babel-jest"
+      },
+      "moduleFileExtensions": ["js", "jsx", "json"]
+    }
   ],
   "coverageDirectory": "coverage",
   "coverageReporters": ["text", "lcov", "html"],
-  "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
-  "testTimeout": 30000,
   "verbose": true
 }

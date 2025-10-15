@@ -24,6 +24,33 @@
   gap: 8px;
 }
 
+/* 标题区域样式 */
+.title-section {
+  margin-bottom: 16px;
+}
+
+.title-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.title-card .ant-input {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+
+.title-card .ant-input:focus {
+  border: none;
+  box-shadow: none;
+}
+
+.title-card .ant-input-count {
+  color: #999;
+  font-size: 12px;
+}
+
 /* 编辑器行布局 */
 .editor-row {
   flex: 1;
@@ -107,26 +134,33 @@
   font-size: 14px;
 }
 
-/* 工具栏 */
-.editor-toolbar {
+/* 保存状态 */
+.save-status {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  padding: 12px 16px;
-  background: #fafafa;
-  border-radius: 8px;
-  border: 1px solid #f0f0f0;
-}
-
-.toolbar-info {
+  padding: 8px 16px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
   font-size: 12px;
   color: #666;
+  margin-top: 16px;
 }
 
-.toolbar-actions {
+.save-status span {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+}
+
+/* 深色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .save-status {
+    background: #2a2a2a;
+    border-color: #404040;
+    color: #ccc;
+  }
 }
 
 /* 响应式设计 */
