@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 import { useDispatch, useSelector } from 'react-redux';
+import { message } from 'antd';
 import { updateCurrentArticle } from '../../store/slices/articleSlice';
 import FeishuPasteHandler from './FeishuPasteHandler';
 import './TinyMCEEditor.css';
@@ -9,6 +10,16 @@ import './TinyMCEEditor.css';
 const TINYMCE_CONFIG = {
   height: '100%',
   menubar: false,
+  // 品牌和推广配置
+  branding: false, // 移除"Powered by TinyMCE"品牌
+  promotion: false, // 移除升级推广链接
+  content_css: false, // 移除CSS推广
+  visual: false, // 移除视觉块工具栏的推广
+  // 禁用统计和监控
+  disable_notifications: true, // 禁用通知
+  plugins_extend: false, // 禁用插件扩展
+  toolbar_extend: false, // 禁用工具栏扩展
+  custom_undo_redo_levels: 10, // 限制撤销重做级别
   plugins: [
     'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
     'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
@@ -62,11 +73,85 @@ const TINYMCE_CONFIG = {
       resolve(url);
     });
   },
-  // 自动保存 - 简化配置，避免API问题
+  // 集成飞书粘贴处理
   setup: (editor) => {
     // 编辑器初始化完成事件
     editor.on('init', () => {
-      console.log('TinyMCE编辑器初始化完成');
+      // 移除调试信息，保持代码整洁
+    });
+
+    // 添加飞书粘贴处理器
+    editor.on('paste', (event) => {
+      const clipboardData = event.clipboardData || window.clipboardData;
+      if (!clipboardData) return;
+
+      const htmlContent = clipboardData.getData('text/html');
+
+      if (htmlContent) {
+        // 检测飞书内容特征
+        const feishuIndicators = [
+          'data-feishu-', 'feishu-', 'lark-', 'bytedance',
+          'feishu-block', 'feishu-text', 'feishu-image', 'feishu-table',
+          '<meta name="generator" content="feishu"',
+          'feishu.cn', 'larksuite.com'
+        ];
+
+        const isFeishu = feishuIndicators.some(indicator =>
+          htmlContent.toLowerCase().includes(indicator)
+        );
+
+        if (isFeishu) {
+          event.preventDefault();
+
+          try {
+            // 转换飞书格式
+            let convertedContent = htmlContent;
+
+            // 转换代码块
+            const codeBlockPatterns = [
+              {
+                pattern: /<div[^>]*class="[^"]*feishu-code-block[^"]*"[^>]*>(.*?)<\/div>/gis,
+                replacement: '<pre><code>$1</code></pre>'
+              },
+              {
+                pattern: /<div[^>]*class="[^"]*feishu-code[^"]*"[^>]*data-language="([^"]*)"[^>]*>(.*?)<\/div>/gis,
+                replacement: (match, language, code) => {
+                  return `<pre><code class="language-${language || 'text'}">${code}</code></pre>`;
+                }
+              },
+              {
+                pattern: /<div[^>]*class="[^"]*code-block[^"]*"[^>]*>(.*?)<\/div>/gis,
+                replacement: '<pre><code>$1</code></pre>'
+              }
+            ];
+
+            codeBlockPatterns.forEach(rule => {
+              convertedContent = convertedContent.replace(rule.pattern, rule.replacement);
+            });
+
+            // 转换图片
+            convertedContent = convertedContent.replace(
+              /<img[^>]*data-src="([^"]*)"[^>]*data-feishu[^>]*>/gi,
+              (match, src) => match.replace(/data-src="/g, 'src="')
+            );
+
+            // 清理飞书属性
+            convertedContent = convertedContent
+              .replace(/\s*data-feishu-[^=]*="[^"]*"/gi, '')
+              .replace(/\s*class="[^"]*feishu-[^"]*"/gi, '');
+
+            // 插入转换后的内容
+            editor.insertContent(convertedContent);
+            message.success('飞书格式已转换并保持');
+          } catch (error) {
+            message.error('格式转换失败，已插入纯文本');
+            const plainText = clipboardData.getData('text/plain');
+            if (plainText) {
+              editor.insertContent(`<p>${plainText}</p>`);
+            }
+          }
+        }
+      }
     });
   }
 };
@@ -141,8 +226,9 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
           content: editorContent,
           updatedAt: new Date().toISOString()
         }));
+        // 自动保存使用静默模式，不打扰用户
       } catch (error) {
-        console.error('自动保存失败:', error);
+        // 静默处理自动保存错误，避免打扰用户
       }
     }
   }, [dispatch]);
@@ -174,40 +260,30 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
 
   // 处理编辑器初始化
   const handleEditorInit = (editor) => {
-    // 延迟验证，确保编辑器完全初始化
+    // 立即设置编辑器引用
+    editorRef.current = editor;
+    setIsEditorReady(true);
+
+    // 如果有初始内容，设置到编辑器
+    if (initialContent) {
+      try {
+        editor.setContent(initialContent);
+        calculateStats(initialContent);
+      } catch (error) {
+        // 静默处理错误，避免控制台噪音
+      }
+    }
+
+    // 设置焦点
     setTimeout(() => {
-      // 验证编辑器对象
-      if (!editor || typeof editor.focus !== 'function') {
-        console.error('编辑器对象无效或API不可用');
-        // 如果编辑器API不可用，可能是只读模式，仍然标记为已初始化
-        setIsEditorReady(true);
-        return;
-      }
-
-      editorRef.current = editor;
-      setIsEditorReady(true);
-
-      // 如果有初始内容，设置到编辑器
-      if (initialContent) {
-        try {
-          editor.setContent(initialContent);
-          calculateStats(initialContent);
-        } catch (error) {
-          console.error('设置初始内容失败:', error);
+      try {
+        if (editor && typeof editor.focus === 'function') {
+          editor.focus();
         }
+      } catch (error) {
+        // 静默处理错误，避免控制台噪音
       }
-
-      // 设置焦点
-      setTimeout(() => {
-        try {
-          if (editor && typeof editor.focus === 'function') {
-            editor.focus();
-          }
-        } catch (error) {
-          console.error('设置焦点失败:', error);
-        }
-      }, 100);
-    }, 500); // 增加延迟时间确保编辑器完全初始化
+    }, 100);
   };
 
   // 监听外部内容变化
@@ -261,8 +337,10 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
           updatedAt: new Date().toISOString()
         }));
 
-        } catch (error) {
-        console.error('手动保存失败:', error);
+        // 显示保存成功提示
+        message.success('文章已保存');
+      } catch (error) {
+        message.error('保存失败，请重试');
       }
     }
   };

@@ -176,13 +176,78 @@ class FeishuPasteProcessor {
    * 转换代码块格式
    */
   convertCodeBlocks(content) {
-    // 处理飞书代码块
-    const codeBlockPattern = /<div[^>]*class="[^"]*feishu-code[^"]*"[^>]*>(.*?)<\/div>/gi;
-    content = content.replace(codeBlockPattern, '<pre><code>$1</code></pre>');
+    // 处理飞书代码块 - 使用保守的匹配模式
+    const codeBlockPatterns = [
+      // 模式1: 标准的飞书代码块容器
+      {
+        pattern: /<div[^>]*class="[^"]*feishu-code-block[^"]*"[^>]*>(.*?)<\/div>/gis,
+        replacement: '<pre><code>$1</code></pre>'
+      },
+      // 模式2: 带语言标识的代码块
+      {
+        pattern: /<div[^>]*class="[^"]*feishu-code[^"]*"[^>]*data-language="([^"]*)"[^>]*>(.*?)<\/div>/gis,
+        replacement: (match, language, code) => {
+          return `<pre><code class="language-${language || 'text'}">${code}</code></pre>`;
+        }
+      },
+      // 模式3: 飞书代码块的主要识别模式
+      {
+        pattern: /<div[^>]*class="[^"]*code-block[^"]*"[^>]*>(.*?)<\/div>/gis,
+        replacement: '<pre><code>$1</code></pre>'
+      }
+    ];
 
-    // 处理内联代码
-    const inlineCodePattern = /<span[^>]*class="[^"]*feishu-inline-code[^"]*"[^>]*>(.*?)<\/span>/gi;
-    content = content.replace(inlineCodePattern, '<code>$1</code>');
+    // 应用所有代码块转换规则
+    codeBlockPatterns.forEach(rule => {
+      content = content.replace(rule.pattern, rule.replacement);
+    });
+
+    // 处理内联代码 - 精确匹配
+    const inlineCodePatterns = [
+      // 标准内联代码
+      {
+        pattern: /<span[^>]*class="[^"]*feishu-inline-code[^"]*"[^>]*>(.*?)<\/span>/gis,
+        replacement: '<code>$1</code>'
+      }
+    ];
+
+    // 应用所有内联代码转换规则
+    inlineCodePatterns.forEach(rule => {
+      content = content.replace(rule.pattern, rule.replacement);
+    });
+
+    // 后处理：清理代码块内容
+    content = content.replace(/<pre><code>(.*?)<\/code><\/pre>/gis, (match, code) => {
+      // 清理代码内容，保留必要的换行和空格
+      let cleanCode = code
+        .replace(/&nbsp;/g, ' ')  // 替换HTML空格实体
+        .replace(/&lt;/g, '<')    // 恢复小于号
+        .replace(/&gt;/g, '>')    // 恢复大于号
+        .replace(/&amp;/g, '&')    // 恢复和号
+        .replace(/&quot;/g, '"')  // 恢复引号
+        .replace(/&#39;/g, "'")   // 恢复单引号
+        .replace(/<br\s*\/?>/gi, '\n')  // 将HTML换行转换为实际换行
+        .replace(/<\/p>\s*<p>/gi, '\n')  // 将段落分隔转换为换行
+        .replace(/<div[^>]*>/gi, '\n')   // 将div标签转换为换行
+        .replace(/<\/div>/gi, '\n')     // 将div结束标签转换为换行
+        .replace(/<span[^>]*>/gi, '')   // 移除span开始标签
+        .replace(/<\/span>/gi, '')      // 移除span结束标签
+        .replace(/<[^>]*>/g, '')        // 移除剩余的HTML标签
+        .trim();
+
+      // 恢复代码的缩进格式
+      cleanCode = cleanCode
+        .split('\n')
+        .map(line => {
+          // 保留行首的空格（缩进）
+          const leadingSpaces = line.match(/^ */)[0];
+          const content = line.trim();
+          return content ? leadingSpaces + content : '';
+        })
+        .join('\n');
+
+      return `<pre><code>${cleanCode}</code></pre>`;
+    });
 
     return content;
   }
@@ -246,7 +311,9 @@ class FeishuPasteProcessor {
     const plainText = clipboardData.getData('text/plain');
 
     // 检测是否为飞书内容
-    if (htmlContent && this.detectFeishuContent(htmlContent)) {
+    const isFeishu = htmlContent && this.detectFeishuContent(htmlContent);
+
+    if (isFeishu) {
       event.preventDefault();
 
       try {
@@ -259,7 +326,6 @@ class FeishuPasteProcessor {
         message.success('飞书格式已转换并保持');
         return true;
       } catch (error) {
-        console.error('飞书格式转换失败:', error);
         message.error('格式转换失败，已插入纯文本');
 
         // 降级处理：插入纯文本
@@ -278,57 +344,22 @@ class FeishuPasteProcessor {
 function FeishuPasteHandler({ editor }) {
   const dispatch = useDispatch();
   const handlerRef = useRef(null);
+  const [isHandlerReady, setIsHandlerReady] = React.useState(false);
 
   useEffect(() => {
-    if (!editor) return;
-
-    // 延迟检查编辑器API，确保编辑器完全初始化
-    const checkEditorAPI = () => {
-      if (typeof editor.on === 'function') {
-        // 初始化处理器
-        handlerRef.current = new FeishuPasteProcessor();
-
-        // 添加粘贴事件监听器
-        const pasteHandler = (event) => {
-          handlerRef.current.handlePaste(event, editor);
-        };
-
-        try {
-          editor.on('paste', pasteHandler);
-        } catch (error) {
-          console.warn('无法添加粘贴事件监听器:', error);
-        }
-
-        // 返回清理函数
-        return () => {
-          try {
-            if (typeof editor.off === 'function') {
-              editor.off('paste', pasteHandler);
-            }
-          } catch (error) {
-            console.warn('无法移除粘贴事件监听器:', error);
-          }
-        };
-      }
-    };
-
-    // 立即检查或延迟检查
-    const cleanup = checkEditorAPI();
-
-    // 如果立即检查失败，延迟重试
-    if (!cleanup) {
-      const timeoutId = setTimeout(() => {
-        const delayedCleanup = checkEditorAPI();
-        return delayedCleanup;
-      }, 1000);
-
-      return () => {
-        clearTimeout(timeoutId);
-        if (cleanup) cleanup();
-      };
+    if (!editor) {
+      return;
     }
 
-    return cleanup;
+    // 简化的编辑器API检测 - 不再依赖editor.on方法
+    // TinyMCE的粘贴事件已经通过编辑器配置处理，这里只需要初始化处理器
+    handlerRef.current = new FeishuPasteProcessor();
+    setIsHandlerReady(true);
+
+    // 清理函数
+    return () => {
+      handlerRef.current = null;
+    };
   }, [editor]);
 
   return null; // 这个组件不需要渲染任何UI
