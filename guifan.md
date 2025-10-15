@@ -51,6 +51,37 @@
 - **资源清理**: 组件卸载时必须正确清理定时器和事件监听器
 - **第三方提示**: React开发环境提示（如React DevTools）不属于代码错误，无需处理
 
+### 1.8 依赖管理规范
+- **禁止私自安装**: 绝对禁止私自运行 `npm install`、`npm install --force` 等大型依赖安装命令
+- **必须通知**: 所有依赖安装操作必须通知用户手动完成
+- **安全原则**: 保证T001-T010已开发功能正常运行是最高优先级
+- **依赖检查**: 如需安装依赖，必须先确认不影响现有功能
+- **执行命令**: 如需安装依赖，使用以下命令：
+  - 标准安装: `npm install`
+  - 强制重装: `npm install --force`
+  - 清理缓存: `rm -rf node_modules/.cache`
+
+### 1.9 开发环境端口管理规范
+- **固定端口**: 开发环境统一使用3000端口，避免频繁更换端口
+- **服务持续性**: webpack-dev-server启动后应保持运行，支持热重载，非必要不重启
+- **重启原则**: 只有在以下特殊情况下才重启3000端口：
+  - 应用启动失败，出现`EADDRINUSE: address already in use :::3000`错误
+  - webpack-dev-server进程处于僵尸状态（端口被占用但无法访问）
+  - Electron应用无法连接到开发服务器
+  - 依赖安装后需要重新初始化开发环境
+- **禁止随意重启**: 正常开发过程中，即使有代码改动也不需要手动重启，webpack会自动热重载
+- **端口冲突解决**: 仅在符合重启原则时使用PowerShell命令强制终止占用端口的进程
+- **有效kill命令**:
+  - 单进程终止: `powershell -Command "Stop-Process -Id <进程ID> -Force"`
+  - 批量端口清理: `powershell -Command "Get-NetTCPConnection -LocalPort 3000 | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }"`
+- **失效命令**: 以下命令经测试无效，不应使用：
+  - `pwsh -Command "Get-NetTCPConnection..."` (语法错误)
+  - `taskkill /F /PID <ID>` (在Git Bash中无法正确执行)
+  - `cmd.exe /c "taskkill..."` (执行不彻底)
+- **执行时机**: 仅在确认符合重启原则时执行，避免不必要的重启操作
+- **权限要求**: 使用Force参数确保能够终止占用端口的进程
+- **验证方法**: 执行后使用`netstat -ano | findstr :3000`验证端口是否释放
+
 ---
 
 ## 2. 开发规范
@@ -192,6 +223,31 @@
 - 完善HTTP API设计和安全规范
 - 添加界面响应式设计规范
 - 制定应用发布和部署流程
+
+### 2025-10-15 v1.4.0
+- 添加开发环境端口管理规范
+- 建立固定端口使用原则（统一使用3000端口）
+- 制定pwsh命令处理端口冲突的标准流程
+- 完善开发环境自动化管理机制
+
+### 2025-10-15 v1.5.0
+- 优化端口重启原则，明确禁止随意重启3000端口
+- 建立服务持续性原则，webpack-dev-server应保持运行支持热重载
+- 定义重启的四种特殊情况，避免不必要的重启操作
+- 提高开发效率，减少端口管理时间浪费
+
+### 2025-10-15 v1.6.0
+- 验证并确定有效的进程终止命令
+- 明确标注失效的kill命令，避免重复尝试
+- 建立PowerShell为标准的进程管理工具
+- 添加端口释放验证方法，确保操作有效性
+
+### 2025-10-15 v1.7.0
+- 修复章节编号重复问题，将端口管理规范调整为1.9
+- 验证实际有效的PowerShell端口清理命令
+- 确认单进程终止命令的有效性：`powershell -Command "Stop-Process -Id <进程ID> -Force"`
+- 验证端口状态检查命令：`netstat -ano | findstr :3000`
+- 建立实际验证过的进程管理流程
 
 ---
 

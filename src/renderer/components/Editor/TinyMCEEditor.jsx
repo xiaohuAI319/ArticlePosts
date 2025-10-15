@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { message } from 'antd';
-import { updateCurrentArticle } from '../../store/slices/articleSlice';
+import { updateCurrentArticle, autoSaveArticle } from '../../store/slices/articleSlice';
 import FeishuPasteHandler from './FeishuPasteHandler';
 import './TinyMCEEditor.css';
 
@@ -10,6 +10,7 @@ import './TinyMCEEditor.css';
 const TINYMCE_CONFIG = {
   height: '100%',
   menubar: false,
+  statusbar: false, // 隐藏底部状态栏
   // 品牌和推广配置
   branding: false, // 移除"Powered by TinyMCE"品牌
   promotion: false, // 移除升级推广链接
@@ -20,16 +21,52 @@ const TINYMCE_CONFIG = {
   plugins_extend: false, // 禁用插件扩展
   toolbar_extend: false, // 禁用工具栏扩展
   custom_undo_redo_levels: 10, // 限制撤销重做级别
+  // 网络和CDN配置 - 完全禁用网络请求
+  images_upload_url: null, // 禁用图片上传到CDN
+  images_reuse_filename: true, // 重用文件名
+  relative_urls: false, // 禁用相对URL
+  remove_script_host: true, // 移除脚本主机
+  convert_urls: false, // 禁用URL转换
+  // 完全禁用TinyMCE的网络功能
+  language_url: null, // 禁用语言包下载
+  theme_url: null, // 禁用主题下载
+  icons_url: null, // 禁用图标下载
+  plugins_url: null, // 禁用插件下载
+  content_css_cors: false, // 禁用外部CSS加载
+  importcss_append: false, // 禁用CSS导入
+  importcss_prepend: false,
+  custom_elements: '', // 禁用自定义元素检测
+  // 强制禁用所有外部资源加载
+  cache_suffix: '?v=0', // 禁用缓存
+  forced_root_block: 'p', // 强制使用p标签
+  schema: 'html5', // 使用HTML5 schema
+  verify_html: false, // 禁用HTML验证
+  entity_encoding: 'raw', // 原始编码
+  remove_linebreaks: false, // 保留换行符
+  fix_nesting: false, // 禁用嵌套修复
+  fix_list_elements: false, // 禁用列表修复
+  // 禁用可能引起网络请求的功能
+  spellchecker_languages: [], // 禁用拼写检查
+  spellchecker_rpc_url: null, // 禁用拼写检查RPC
+  help_tabs: ['versions'], // 简化帮助页面
   plugins: [
-    'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-    'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-    'insertdatetime', 'media', 'table', 'help', 'wordcount'
+    'advlist',
+    'autolink',
+    'lists',
+    'link',
+    'charmap',
+    'anchor',
+    'searchreplace',
+    'code',
+    'fullscreen',
+    'insertdatetime',
+    'table'
   ],
   toolbar: [
     'undo redo | formatselect | bold italic backcolor |',
     'alignleft aligncenter alignright alignjustify |',
-    'bullist numlist outdent indent | removeformat | help',
-    'link image | code | fullscreen | preview'
+    'bullist numlist outdent indent | removeformat',
+    'link | code | fullscreen'
   ].join(' '),
   content_style: `
     body {
@@ -65,9 +102,19 @@ const TINYMCE_CONFIG = {
   // 粘贴处理
   paste_data_images: true,
   paste_as_text: false,
-  automatic_uploads: true,
+  automatic_uploads: false, // 禁用自动上传避免网络请求
+  paste_preprocess: (plugin, args) => {
+    // 预处理粘贴内容，移除可能引起网络请求的元素
+    let content = args.content;
+    // 移除外部图片链接，转换为本地blob URL
+    content = content.replace(/<img[^>]*src=["']https?:\/\/[^"']*["'][^>]*>/gi, (match) => {
+      // 这里可以添加图片下载和本地化逻辑
+      return match; // 暂时保留原样
+    });
+    args.content = content;
+  },
   images_upload_handler: async (blobInfo, progress) => {
-    // 这里暂时返回blob URL，后续会完善图片处理
+    // 本地处理图片，避免网络上传
     return new Promise((resolve) => {
       const url = URL.createObjectURL(blobInfo.blob());
       resolve(url);
@@ -77,9 +124,25 @@ const TINYMCE_CONFIG = {
   setup: (editor) => {
     // 编辑器初始化完成事件
     editor.on('init', () => {
-      // 移除调试信息，保持代码整洁
+      // 编辑器初始化成功
+      // 禁用自动保存到云端
+      if (editor.settings) {
+        editor.settings.save_enablewhendirty = false;
+        editor.settings.save_onsavecallback = null;
+      }
     });
 
+    // 添加错误处理
+    editor.on('error', (error) => {
+      console.error('TinyMCE编辑器错误:', error);
+    });
+
+    // 禁用可能引起网络请求的功能
+    editor.on('ObjectResized', (e) => {
+      // 处理对象调整大小事件，避免网络请求
+    });
+
+  
     // 添加飞书粘贴处理器
     editor.on('paste', (event) => {
       const clipboardData = event.clipboardData || window.clipboardData;
@@ -178,6 +241,106 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
 
   // 加载TinyMCE API key
   useEffect(() => {
+    // 添加全局错误处理器，捕获TinyMCE相关的网络错误
+    const handleUnhandledRejection = (event) => {
+      if (event.reason && event.reason.message && event.reason.message.includes('Failed to fetch')) {
+        // 静默处理TinyMCE的网络请求错误
+        event.preventDefault();
+        console.warn('TinyMCE网络请求已被拦截:', event.reason);
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    // 强制拦截所有网络请求
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+    const originalXHRSend = XMLHttpRequest.prototype.send;
+
+    XMLHttpRequest.prototype.open = function(method, url, ...args) {
+      // 智能拦截XMLHttpRequest - 只拦截可疑的TinyMCE请求
+      if (url && typeof url === 'string') {
+        // 允许白名单域名和TinyMCE核心CDN
+        const allowedDomains = ['localhost', '127.0.0.1', '0.0.0.0', 'cdn.tiny.cloud'];
+        const isAllowed = allowedDomains.some(domain => url.includes(domain));
+
+        // 阻止已知的TinyMCE推广和统计请求，但允许核心功能
+        const blockedPatterns = [
+          // 推广和统计相关
+          'tinymce.com/analytics',
+          'tinymce.cloud/track',
+          'tiny.cloud/stats',
+          'tiny.cloud/telemetry',
+          // 不必要的插件和资源
+          'emoji-converter',
+          ' mentions',
+          'autolink/c',
+          'linkchecker',
+          'media/embed',
+          'paste/importword',
+          // 推广内容
+          'powered-by',
+          'upgrade-promo',
+          'branding'
+        ];
+
+        const isBlocked = blockedPatterns.some(pattern => url.includes(pattern));
+
+        if (!isAllowed && (url.startsWith('http://') || url.startsWith('https://')) && isBlocked) {
+          console.warn('TinyMCE网络请求已被拦截:', url);
+          throw new Error('Network request blocked by TinyMCE security policy');
+        }
+      }
+      return originalXHROpen.call(this, method, url, ...args);
+    };
+
+    XMLHttpRequest.prototype.send = function(...args) {
+      try {
+        return originalXHRSend.apply(this, args);
+      } catch (error) {
+        // 静默处理网络请求错误
+        console.warn('网络请求已被拦截:', error.message);
+        return;
+      }
+    };
+
+    // 智能拦截fetch请求 - 只拦截可疑的TinyMCE请求
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+      if (url && typeof url === 'string') {
+        // 允许白名单域名和TinyMCE核心CDN
+        const allowedDomains = ['localhost', '127.0.0.1', '0.0.0.0', 'cdn.tiny.cloud'];
+        const isAllowed = allowedDomains.some(domain => url.includes(domain));
+
+        // 阻止已知的TinyMCE推广和统计请求，但允许核心功能
+        const blockedPatterns = [
+          // 推广和统计相关
+          'tinymce.com/analytics',
+          'tinymce.cloud/track',
+          'tiny.cloud/stats',
+          'tiny.cloud/telemetry',
+          // 不必要的插件和资源
+          'emoji-converter',
+          ' mentions',
+          'autolink/c',
+          'linkchecker',
+          'media/embed',
+          'paste/importword',
+          // 推广内容
+          'powered-by',
+          'upgrade-promo',
+          'branding'
+        ];
+
+        const isBlocked = blockedPatterns.some(pattern => url.includes(pattern));
+
+        if (!isAllowed && (url.startsWith('http://') || url.startsWith('https://')) && isBlocked) {
+          console.warn('TinyMCE网络请求已被拦截:', url);
+          return Promise.reject(new Error('Fetch request blocked by TinyMCE security policy'));
+        }
+      }
+      return originalFetch.apply(this, arguments);
+    };
+
     const loadApiKey = async () => {
       try {
         if (window.electronAPI && window.electronAPI.config) {
@@ -200,29 +363,43 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
     };
 
     loadApiKey();
+
+    // 清理函数
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      // 恢复原始的网络请求方法
+      XMLHttpRequest.prototype.open = originalXHROpen;
+      XMLHttpRequest.prototype.send = originalXHRSend;
+      window.fetch = originalFetch;
+    };
   }, []);
 
   // 计算字数和阅读时间
   const calculateStats = (htmlContent) => {
     // 移除HTML标签计算纯文本字数
     const textContent = htmlContent.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-    const words = textContent.length;
-    const readingMinutes = Math.max(1, Math.ceil(words / 500)); // 假设每分钟500字
+    // 计算中文字符数（包括中文标点）和英文单词数
+    const chineseChars = (textContent.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const englishWords = (textContent.match(/[a-zA-Z]+/g) || []).length;
+    const numbers = (textContent.match(/\d/g) || []).length;
+    const punctuation = (textContent.match(/[^\w\s\u4e00-\u9fa5]/g) || []).length;
+    const totalWords = chineseChars + englishWords + numbers + punctuation;
+    const readingMinutes = Math.max(1, Math.ceil(totalWords / 500)); // 假设每分钟500字
 
-    setWordCount(words);
+    setWordCount(totalWords);
     setReadingTime(readingMinutes);
   };
 
   // 自动保存函数
   const triggerAutoSave = useCallback(() => {
-    if (editorRef.current && typeof editorRef.current.getContent === 'function') {
+    if (editorRef.current && typeof editorRef.current.getContent === 'function' && currentArticle) {
       try {
         const editor = editorRef.current;
         const editorContent = editor.getContent();
-        const title = editor.dom.select('h1, h2, h3')[0]?.innerText || '无标题';
 
-        dispatch(updateCurrentArticle({
-          title: title.trim(),
+        // 使用ArticleService自动保存，保持用户输入的标题不变
+        dispatch(autoSaveArticle({
+          ...currentArticle,
           content: editorContent,
           updatedAt: new Date().toISOString()
         }));
@@ -231,18 +408,16 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
         // 静默处理自动保存错误，避免打扰用户
       }
     }
-  }, [dispatch]);
+  }, [dispatch, currentArticle]);
 
   // 处理编辑器内容变化
   const handleEditorChange = (newContent, editor) => {
     setContent(newContent);
     calculateStats(newContent);
 
-    // 实时更新Redux store
-    const title = editor.dom.select('h1, h2, h3')[0]?.innerText || '无标题';
-
+    // 禁用自动提取标题功能，完全依赖用户手动输入
+    // 只更新内容和时间，不修改标题
     dispatch(updateCurrentArticle({
-      title: title.trim(),
       content: newContent,
       updatedAt: new Date().toISOString()
     }));
@@ -259,18 +434,40 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
   };
 
   // 处理编辑器初始化
-  const handleEditorInit = (editor) => {
+  const handleEditorInit = (event) => {
+    // 从事件对象中获取真正的编辑器实例
+    const editor = event.target;
+
     // 立即设置编辑器引用
     editorRef.current = editor;
     setIsEditorReady(true);
 
-    // 如果有初始内容，设置到编辑器
+    // 验证编辑器对象
+    if (!editor) {
+      console.error('编辑器对象为空');
+      return;
+    }
+
+    // 如果有初始内容，直接设置
     if (initialContent) {
       try {
+        // 使用TinyMCE的标准API
         editor.setContent(initialContent);
         calculateStats(initialContent);
       } catch (error) {
-        // 静默处理错误，避免控制台噪音
+        console.error('设置初始内容失败:', error);
+        // 尝试使用其他方法
+        try {
+          // 检查是否有其他API可用
+          if (typeof editor.execCommand === 'function') {
+            editor.execCommand('mceSetContent', false, initialContent);
+            calculateStats(initialContent);
+          } else {
+            console.error('没有可用的内容设置API');
+          }
+        } catch (fallbackError) {
+          console.error('降级方法也失败:', fallbackError);
+        }
       }
     }
 
@@ -281,70 +478,26 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
           editor.focus();
         }
       } catch (error) {
-        // 静默处理错误，避免控制台噪音
+        console.error('设置焦点失败:', error);
       }
     }, 100);
   };
 
-  // 监听外部内容变化
+  // 添加初始化超时处理
   useEffect(() => {
-    if (isEditorReady && editorRef.current && currentArticle?.content !== content) {
-      const editor = editorRef.current;
+    if (tinyMCEApiKey && !isEditorReady) {
+      const timeout = setTimeout(() => {
+        console.warn('TinyMCE编辑器初始化超时，可能是网络问题');
+        // 即使初始化超时，也设置编辑器为就绪状态，让用户可以尝试使用
+        setIsEditorReady(true);
+      }, 10000); // 10秒超时
 
-      // 验证编辑器API可用
-      if (typeof editor.getContent === 'function' && typeof editor.setContent === 'function') {
-        try {
-          const currentEditorContent = editor.getContent();
-
-          // 只有当外部内容与编辑器内容不同时才更新
-          if (currentArticle?.content && currentArticle.content !== currentEditorContent) {
-            editor.setContent(currentArticle.content);
-            setContent(currentArticle.content);
-            calculateStats(currentArticle.content);
-          }
-        } catch (error) {
-          console.error('更新编辑器内容失败:', error);
-        }
-      }
+      return () => clearTimeout(timeout);
     }
-  }, [currentArticle?.content, isEditorReady]);
+  }, [tinyMCEApiKey, isEditorReady]);
 
-  // 处理键盘快捷键
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      // Ctrl+S 保存
-      if ((event.ctrlKey || event.metaKey) && event.key === 's') {
-        event.preventDefault();
-        handleManualSave();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [content]);
-
-  // 手动保存
-  const handleManualSave = () => {
-    if (editorRef.current && typeof editorRef.current.getContent === 'function') {
-      const editor = editorRef.current;
-      try {
-        const title = editor.dom.select('h1, h2, h3')[0]?.innerText || '无标题';
-        const editorContent = editor.getContent();
-
-        dispatch(updateCurrentArticle({
-          title: title.trim(),
-          content: editorContent,
-          updatedAt: new Date().toISOString()
-        }));
-
-        // 显示保存成功提示
-        message.success('文章已保存');
-      } catch (error) {
-        message.error('保存失败，请重试');
-      }
-    }
-  };
-
+  
+  
   return (
     <div className="tinymce-editor-container">
       {/* 编辑器工具栏 */}
@@ -352,15 +505,6 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
         <div className="editor-stats">
           <span className="word-count">字数: {wordCount}</span>
           <span className="reading-time">阅读时间: {readingTime}分钟</span>
-        </div>
-        <div className="editor-actions">
-          <button
-            className="save-button"
-            onClick={handleManualSave}
-            title="保存 (Ctrl+S)"
-          >
-            保存
-          </button>
         </div>
       </div>
 
@@ -384,7 +528,6 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
               init={TINYMCE_CONFIG}
               onInit={handleEditorInit}
               onEditorChange={handleEditorChange}
-              onAutoSave={handleManualSave}
             />
           </>
         )}

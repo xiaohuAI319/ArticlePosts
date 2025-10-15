@@ -75,6 +75,25 @@ class Platform {
   }
 
   /**
+   * 根据标识符获取平台（使用name字段）
+   */
+  findBySlug(slug) {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM platforms WHERE name = ?');
+      const platform = stmt.get(slug);
+
+      if (platform && platform.config_schema) {
+        platform.config_schema = JSON.parse(platform.config_schema);
+      }
+
+      return platform;
+    } catch (error) {
+      console.error('获取平台失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 创建平台
    */
   create(platformData) {
