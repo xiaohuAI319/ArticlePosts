@@ -33,10 +33,18 @@
 
 ### 1.5 文档Git管理规范
 - **jindu.md**: 已添加到.gitignore，不提交到Git仓库
-- **guifan.md**: 需要提交到Git仓库，保持规范同步
+- **guifan.md**: 已添加到.gitignore，不提交到Git仓库，避免敏感信息泄露
 - **constitution.md**: 核心文档，需要提交到Git仓库
 - **project-management.md**: 记忆文档，需要提交到Git仓库
 - **配置文件**: 所有敏感配置文件都在.gitignore保护范围内
+- **敏感信息原则**:
+  - 规范文档（guifan.md、jindu.md）可能包含敏感信息，一律不提交到Git仓库
+  - 如需记录敏感配置，应使用config.json等专用配置文件
+  - 所有敏感信息必须通过.gitignore保护，不得提交到Git仓库
+- **文档同步策略**:
+  - 重要规范更新通过其他方式（如会议记录、邮件通知）传达给团队
+  - 规范版本管理通过本地文件维护，确保团队信息同步
+  - 关键配置变更需要团队确认并记录
 
 ### 1.6 配置管理规范
 - **API key管理**: 敏感API key存储在config.json中，通过.gitignore保护

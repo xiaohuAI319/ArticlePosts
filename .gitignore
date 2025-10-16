@@ -4,6 +4,9 @@
 # 进度记录文件（包含内部工作进展）
 jindu.md
 
+# 规范文档（可能包含敏感信息）
+guifan.md
+
 # 敏感配置文件
 config/
 *.config
