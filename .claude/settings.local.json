@@ -34,7 +34,12 @@
       "Bash(pwsh:*)",
       "Bash(cmd:*)",
       "Bash(curl:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(npx electron-rebuild:*)",
+      "Bash(timeout 20 npm run dev:*)",
+      "Bash(timeout 15 npm run dev:*)",
+      "Bash(sqlite3:*)",
+      "Bash(timeout 60 npm run dev:*)"
     ],
     "deny": [],
     "ask": []

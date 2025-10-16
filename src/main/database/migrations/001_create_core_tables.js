@@ -219,6 +219,20 @@ function insertInitialData(db) {
       base_url: 'https://www.zhihu.com',
       login_url: 'https://www.zhihu.com/signin',
       publish_url: 'https://zhuanlan.zhihu.com/write',
+      config_schema: JSON.stringify({
+        auth_method: 'qr_code',
+        auth_config: {
+          qr_selector: '.sign-in-qrcode img, .QRCode img, img[alt*="二维码"], .qrcode img',
+          max_attempts: 120,
+          refresh_interval: 3000,
+          login_success_indicators: [
+            '.AppHeader-profile',
+            '.ProfileHeader-name',
+            '[data-za-detail-view-element_name="User"]',
+            '.ContentItem-title'
+          ]
+        }
+      }),
       priority: 1,
       is_active: 1
     },

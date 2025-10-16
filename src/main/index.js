@@ -26,6 +26,8 @@ const QRCodeService = require('./services/QRCodeService');
 const { BrowserManager } = require('./automation/BrowserManager');
 // 导入平台自动化登录服务
 const PlatformAutoLoginService = require('./services/PlatformAutoLoginService');
+// 导入发布任务管理服务
+const PublishService = require('./services/PublishService');
 
 // 保持对窗口对象的全局引用，如果不这样做，当JavaScript对象被垃圾回收时，窗口将自动关闭
 let mainWindow;
@@ -41,6 +43,8 @@ const qrCodeService = new QRCodeService();
 const browserManager = new BrowserManager();
 // 创建平台自动化登录服务实例
 const platformAutoLoginService = new PlatformAutoLoginService();
+// 创建发布任务管理服务实例
+const publishService = new PublishService();
 
 function createWindow() {
   console.log('正在创建应用窗口...');
@@ -180,6 +184,11 @@ app.whenReady().then(async () => {
     console.log('正在初始化平台自动化登录服务...');
     await platformAutoLoginService.initialize();
     console.log('平台自动化登录服务初始化完成');
+
+    // 初始化发布任务管理服务
+    console.log('正在初始化发布任务管理服务...');
+    await publishService.initialize();
+    console.log('发布任务管理服务初始化完成');
 
     // 创建应用窗口
     createWindow();
@@ -421,50 +430,6 @@ ipcMain.handle('articles:autoSave', async (event, articleData) => {
   }
 });
 
-ipcMain.handle('articles:publish', async (event, id, platformIds) => {
-  try {
-    // TODO: 实现文章发布功能
-    // 这里暂时返回成功状态，后续会在平台集成中实现
-    return {
-      success: true,
-      message: '文章发布功能将在后续版本中实现',
-      data: {
-        id,
-        platformIds,
-        status: 'pending'
-      }
-    };
-  } catch (error) {
-    console.error('发布文章失败:', error);
-    throw error;
-  }
-});
-
-ipcMain.handle('articles:getPublishStatus', async (event, id) => {
-  try {
-    // TODO: 实现获取发布状态功能
-    return {
-      success: true,
-      data: []
-    };
-  } catch (error) {
-    console.error('获取发布状态失败:', error);
-    throw error;
-  }
-});
-
-ipcMain.handle('articles:cancelPublish', async (event, id, platformId) => {
-  try {
-    // TODO: 实现取消发布功能
-    return {
-      success: true,
-      message: '取消发布功能将在后续版本中实现'
-    };
-  } catch (error) {
-    console.error('取消发布失败:', error);
-    throw error;
-  }
-});
 
 // 平台相关的IPC处理 - 使用PlatformService
 ipcMain.handle('platforms:findAll', async (event, activeOnly = true) => {
@@ -882,4 +847,191 @@ ipcMain.handle('autoLogin:deactivateSession', async (event, sessionId) => {
 ipcMain.on('renderer-message', (event, data) => {
   console.log('来自渲染进程的消息:', data);
   // TODO: 处理具体的消息
+});
+
+// 发布任务管理相关的IPC处理程序
+ipcMain.handle('publish:createTask', async (event, taskData) => {
+  try {
+    return await publishService.createPublishTask(taskData);
+  } catch (error) {
+    console.error('创建发布任务失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:startTask', async (event, taskId) => {
+  try {
+    return await publishService.startPublishTask(taskId);
+  } catch (error) {
+    console.error('开始发布任务失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:updateProgress', async (event, taskId, progress, message) => {
+  try {
+    return await publishService.updateTaskProgress(taskId, progress, message);
+  } catch (error) {
+    console.error('更新任务进度失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:completeTask', async (event, taskId, result) => {
+  try {
+    return await publishService.completePublishTask(taskId, result);
+  } catch (error) {
+    console.error('完成任务失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:failTask', async (event, taskId, errorInfo) => {
+  try {
+    return await publishService.failPublishTask(taskId, errorInfo);
+  } catch (error) {
+    console.error('标记任务失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:cancelTask', async (event, taskId, reason) => {
+  try {
+    return await publishService.cancelPublishTask(taskId, reason);
+  } catch (error) {
+    console.error('取消任务失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:getTaskStatus', async (event, taskId) => {
+  try {
+    return await publishService.getTaskStatus(taskId);
+  } catch (error) {
+    console.error('获取任务状态失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:getActiveTasks', async (event, articleId, platformId) => {
+  try {
+    return await publishService.getActiveTasks(articleId, platformId);
+  } catch (error) {
+    console.error('获取活跃任务列表失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:getTaskHistory', async (event, filters) => {
+  try {
+    return await publishService.getTaskHistory(filters);
+  } catch (error) {
+    console.error('获取任务历史失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:addTaskLog', async (event, taskId, level, message, details) => {
+  try {
+    return await publishService.addTaskLog(taskId, level, message, details);
+  } catch (error) {
+    console.error('添加任务日志失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:getTaskLogs', async (event, taskId, limit) => {
+  try {
+    return await publishService.getTaskLogs(taskId, limit);
+  } catch (error) {
+    console.error('获取任务日志失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('publish:getStats', async () => {
+  try {
+    return await publishService.getStats();
+  } catch (error) {
+    console.error('获取发布统计信息失败:', error);
+    throw error;
+  }
+});
+
+// 重新实现文章发布相关IPC处理，使用PublishService
+ipcMain.handle('articles:publish', async (event, articleId, platformIds, options = {}) => {
+  try {
+    const results = [];
+
+    for (const platformId of platformIds) {
+      // 为每个平台创建发布任务
+      const taskData = {
+        articleId,
+        platformId,
+        maxRetries: options.maxRetries || 3,
+        ...options
+      };
+
+      const createResult = await publishService.createPublishTask(taskData);
+      if (createResult.success) {
+        // 创建任务成功，开始执行
+        const startResult = await publishService.startPublishTask(createResult.data.id);
+        results.push({
+          platformId,
+          taskId: createResult.data.id,
+          success: startResult.success,
+          message: startResult.success ? '发布任务已开始' : startResult.error
+        });
+      } else {
+        results.push({
+          platformId,
+          success: false,
+          message: createResult.error
+        });
+      }
+    }
+
+    return {
+      success: true,
+      data: results,
+      message: `文章发布任务创建完成 (${results.filter(r => r.success).length}/${results.length})`
+    };
+  } catch (error) {
+    console.error('创建文章发布任务失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('articles:getPublishStatus', async (event, articleId) => {
+  try {
+    const activeTasks = await publishService.getActiveTasks(articleId);
+    return {
+      success: true,
+      data: activeTasks.data || []
+    };
+  } catch (error) {
+    console.error('获取文章发布状态失败:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('articles:cancelPublish', async (event, articleId, platformId) => {
+  try {
+    // 查找该文章在该平台的活跃任务
+    const activeTasks = await publishService.getActiveTasks(articleId, platformId);
+
+    if (activeTasks.data && activeTasks.data.length > 0) {
+      const task = activeTasks.data[0];
+      const result = await publishService.cancelPublishTask(task.id, '用户取消发布');
+      return result;
+    } else {
+      return {
+        success: false,
+        error: '未找到进行中的发布任务'
+      };
+    }
+  } catch (error) {
+    console.error('取消文章发布失败:', error);
+    throw error;
+  }
 });

@@ -7,6 +7,8 @@ const { getDatabaseInstance } = require('./Database');
 const MigrationManager = require('./Migration');
 const Article = require('./models/Article');
 const Platform = require('./models/Platform');
+const PublishTask = require('./models/PublishTask');
+const PublishLog = require('./models/PublishLog');
 
 class DatabaseService {
   constructor() {
@@ -17,7 +19,9 @@ class DatabaseService {
     // 数据模型实例
     this.models = {
       article: null,
-      platform: null
+      platform: null,
+      publishTasks: null,
+      publishLogs: null
     };
   }
 
@@ -50,6 +54,8 @@ class DatabaseService {
       // 4. 初始化数据模型
       this.models.article = new Article();
       this.models.platform = new Platform();
+      this.models.publishTasks = new PublishTask(this.db);
+      this.models.publishLogs = new PublishLog(this.db);
 
       // 5. 检查数据库健康状态
       const healthCheck = this.db.checkHealth();
@@ -80,7 +86,9 @@ class DatabaseService {
       this.migrationManager = null;
       this.models = {
         article: null,
-        platform: null
+        platform: null,
+        publishTasks: null,
+        publishLogs: null
       };
       this.initialized = false;
 
@@ -451,6 +459,82 @@ class DatabaseService {
       initialized: this.initialized,
       migrationStatus: this.migrationManager ? this.migrationManager.getStatus() : null,
       models: Object.keys(this.models).filter(key => this.models[key] !== null)
+    };
+  }
+
+  // 便捷方法：直接访问发布任务模型
+  get publishTasks() {
+    return {
+      ...this.models.publishTasks,
+      create: (data) => this.models.publishTasks.create(data),
+      findById: (id) => this.models.publishTasks.getById(id),
+      getById: (id) => this.models.publishTasks.getById(id),
+      update: (id, data) => this.models.publishTasks.update(id, data),
+      delete: (id) => this.models.publishTasks.delete(id),
+      getWithFilters: (filters) => this.models.publishTasks.getWithFilters(filters),
+      getStatusDistribution: () => this.models.publishTasks.getStatusDistribution(),
+      getPlatformDistribution: () => this.models.publishTasks.getPlatformDistribution(),
+      getRecentActivity: (limit) => this.models.publishTasks.getRecentActivity(limit),
+      getFailedTasks: (limit) => this.models.publishTasks.getFailedTasks(limit),
+      getRetryableTasks: () => this.models.publishTasks.getRetryableTasks(),
+      batchUpdateStatus: (taskIds, status, updateData) => this.models.publishTasks.batchUpdateStatus(taskIds, status, updateData),
+      cleanup: (retentionDays) => this.models.publishTasks.cleanup(retentionDays),
+      getStats: () => this.models.publishTasks.getStats()
+    };
+  }
+
+  // 便捷方法：直接访问发布日志模型
+  get publishLogs() {
+    return {
+      ...this.models.publishLogs,
+      create: (data) => this.models.publishLogs.create(data),
+      getByTaskId: (taskId, options) => this.models.publishLogs.getByTaskId(taskId, options)
+    };
+  }
+
+  // 便捷方法：直接访问文章模型
+  get articles() {
+    return {
+      ...this.models.article,
+      findById: (id) => {
+        const result = this.models.article.findById(id);
+        if (result) {
+          return { success: true, data: result };
+        } else {
+          return { success: false, error: '文章不存在' };
+        }
+      },
+      create: (data) => {
+        const result = this.models.article.create(data);
+        if (result && result.id) {
+          return { success: true, data: result };
+        } else {
+          return { success: false, error: '创建文章失败' };
+        }
+      }
+    };
+  }
+
+  // 便捷方法：直接访问平台模型
+  get platforms() {
+    return {
+      ...this.models.platform,
+      findById: (id) => {
+        const result = this.models.platform.findById(id);
+        if (result) {
+          return { success: true, data: result };
+        } else {
+          return { success: false, error: '平台不存在' };
+        }
+      },
+      findByName: (name) => {
+        const result = this.models.platform.findByName(name);
+        if (result) {
+          return { success: true, data: result };
+        } else {
+          return { success: false, error: '平台不存在' };
+        }
+      }
     };
   }
 }

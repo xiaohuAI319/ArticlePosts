@@ -302,12 +302,24 @@ class BrowserManager {
       // 记录成功事件
       this._recordSuccess(`浏览器实例创建成功 [${browserId}]`);
 
-      return browser;
+      return {
+        success: true,
+        data: {
+          browserId,
+          browser,
+          processId: process.pid
+        },
+        message: '浏览器实例创建成功'
+      };
 
     } catch (error) {
       const errorMsg = `创建浏览器实例失败: ${error.message}`;
       this._recordError(errorMsg);
-      throw new Error(errorMsg);
+      return {
+        success: false,
+        error: error.message,
+        message: errorMsg
+      };
     }
   }
 

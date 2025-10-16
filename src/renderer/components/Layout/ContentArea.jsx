@@ -7,6 +7,7 @@ import ArticlesPage from '../Pages/ArticlesPage';
 import HistoryPage from '../Pages/HistoryPage';
 import SettingsPage from '../Pages/SettingsPage';
 import BrowserTestPage from '../Pages/BrowserTestPage';
+import TestPage from '../Pages/TestPage';
 import './ContentArea.css';
 
 function ContentArea() {
@@ -28,6 +29,8 @@ function ContentArea() {
       return <SettingsPage />;
     case 'browser-test':
       return <BrowserTestPage />;
+    case 'test':
+      return <TestPage />;
     default:
       return <EditorPage />;
     }

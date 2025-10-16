@@ -49,7 +49,7 @@
     "statuses": "^2.0.2",
     "styled-components": "^6.1.0",
     "tinymce": "^6.8.0",
-    "uuid": "^9.0.0",
+    "uuid": "^9.0.1",
     "wrap-ansi": "^9.0.2"
   },
   "devDependencies": {

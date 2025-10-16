@@ -174,6 +174,45 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deactivateSession: (sessionId) => ipcRenderer.invoke('autoLogin:deactivateSession', sessionId)
   },
 
+  // 发布任务管理相关API
+  publish: {
+    // 创建发布任务
+    createTask: (taskData) => ipcRenderer.invoke('publish:createTask', taskData),
+
+    // 开始发布任务
+    startTask: (taskId) => ipcRenderer.invoke('publish:startTask', taskId),
+
+    // 更新任务进度
+    updateProgress: (taskId, progress, message) => ipcRenderer.invoke('publish:updateProgress', taskId, progress, message),
+
+    // 完成发布任务
+    completeTask: (taskId, result) => ipcRenderer.invoke('publish:completeTask', taskId, result),
+
+    // 标记任务失败
+    failTask: (taskId, errorInfo) => ipcRenderer.invoke('publish:failTask', taskId, errorInfo),
+
+    // 取消任务
+    cancelTask: (taskId, reason) => ipcRenderer.invoke('publish:cancelTask', taskId, reason),
+
+    // 获取任务状态
+    getTaskStatus: (taskId) => ipcRenderer.invoke('publish:getTaskStatus', taskId),
+
+    // 获取活跃任务列表
+    getActiveTasks: (articleId, platformId) => ipcRenderer.invoke('publish:getActiveTasks', articleId, platformId),
+
+    // 获取任务历史
+    getTaskHistory: (filters) => ipcRenderer.invoke('publish:getTaskHistory', filters),
+
+    // 添加任务日志
+    addTaskLog: (taskId, level, message, details) => ipcRenderer.invoke('publish:addTaskLog', taskId, level, message, details),
+
+    // 获取任务日志
+    getTaskLogs: (taskId, limit) => ipcRenderer.invoke('publish:getTaskLogs', taskId, limit),
+
+    // 获取发布统计信息
+    getStats: () => ipcRenderer.invoke('publish:getStats')
+  },
+
   // 菜单事件监听
   onMenuAction: (callback) => {
     const menuActions = [
