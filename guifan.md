@@ -25,11 +25,13 @@
 ### 1.4 Git仓库管理规范
 - **仓库地址**: https://github.com/xiaohuAI319/ArticlePosts
 - **主分支**: main
+- **开发分支**: feature/article-multi-publisher (来源：specs/feature-article-multi-publisher/spec.md)
 - **访问权限**: 公开仓库
 - **敏感信息保护**: 使用.gitignore保护敏感信息
 - **提交规范**: 使用中文提交信息，格式规范
 - **推送权限**: Claude Code助手不得主动执行git push命令，但用户明确指令时可以操作
 - **协作原则**: 保护代码仓库安全，用户指令优先执行
+- **分支管理**: 所有开发工作在feature/article-multi-publisher分支进行，完成后合并到main分支
 
 ### 1.5 文档Git管理规范
 - **jindu.md**: 已添加到.gitignore，不提交到Git仓库
@@ -308,6 +310,15 @@
 - 集成4个核心IPC API接口，支持渲染进程与主进程安全通信
 - 修复导航问题，将登录测试页面正确添加到应用界面
 - 为后续T016+平台发布自动化奠定坚实基础
+
+### 2025-10-16 v1.14.0
+- 完成T015知乎登录状态持久化修复
+- 实现登录会话自动恢复机制，应用重启后保持登录状态
+- 优化前端界面显示，区分新登录和恢复会话状态
+- 修复前端渲染错误和弃用警告问题
+- 从导航栏移除登录测试页面，保持界面简洁
+- 更新文档Git管理规范，保护敏感信息安全
+- 明确开发分支管理策略，feature/article-multi-publisher分支进行开发工作
 
 ---
 
