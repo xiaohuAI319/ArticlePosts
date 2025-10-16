@@ -168,7 +168,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     cancel: (loginId) => ipcRenderer.invoke('autoLogin:cancel', loginId),
 
     // 获取活跃登录列表
-    getActiveLogins: () => ipcRenderer.invoke('autoLogin:getActiveLogins')
+    getActiveLogins: () => ipcRenderer.invoke('autoLogin:getActiveLogins'),
+
+    // 停用登录会话
+    deactivateSession: (sessionId) => ipcRenderer.invoke('autoLogin:deactivateSession', sessionId)
   },
 
   // 菜单事件监听

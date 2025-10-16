@@ -75,17 +75,26 @@ class LoginSessionService {
   }
 
   /**
-   * 加密会话数据 - 使用简单的AES-256-CBC
+   * 加密会话数据 - 使用AES-256-CBC
    */
   encryptData(data) {
     try {
       const dataStr = JSON.stringify(data);
-      const cipher = crypto.createCipher('aes-256-cbc', this.encryptionKey);
+
+      // 创建初始化向量 (IV)
+      const iv = crypto.randomBytes(16);
+
+      // 创建密钥 (确保32字节用于AES-256)
+      const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
+
+      // 创建加密器
+      const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
 
       let encrypted = cipher.update(dataStr, 'utf8', 'hex');
       encrypted += cipher.final('hex');
 
-      return encrypted;
+      // 将IV和加密数据组合
+      return iv.toString('hex') + ':' + encrypted;
     } catch (error) {
       console.error('加密会话数据失败:', error);
       throw error;
@@ -97,15 +106,44 @@ class LoginSessionService {
    */
   decryptData(encryptedData) {
     try {
-      const decipher = crypto.createDecipher('aes-256-cbc', this.encryptionKey);
+      // 分离IV和加密数据
+      const parts = encryptedData.split(':');
+      if (parts.length !== 2) {
+        // 兼容旧格式（没有IV的数据）- 使用旧的createDecipher方法
+        console.log('检测到旧格式会话数据，使用兼容模式解密');
+        try {
+          const decipher = crypto.createDecipher('aes-256-cbc', this.encryptionKey);
+          let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+          decrypted += decipher.final('utf8');
+          return JSON.parse(decrypted);
+        } catch (oldError) {
+          console.error('旧格式解密失败，尝试新格式兼容:', oldError.message);
+          // 如果旧方法失败，再尝试新的固定IV方法
+          const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
+          const decipher = crypto.createDecipheriv('aes-256-cbc', key, Buffer.alloc(16, 0));
+          let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+          decrypted += decipher.final('utf8');
+          return JSON.parse(decrypted);
+        }
+      }
 
-      let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+      const iv = Buffer.from(parts[0], 'hex');
+      const encrypted = parts[1];
+
+      // 创建密钥
+      const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
+
+      // 创建解密器
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
       decrypted += decipher.final('utf8');
 
       return JSON.parse(decrypted);
     } catch (error) {
       console.error('解密会话数据失败:', error);
-      throw error;
+      // 不要抛出错误，返回null让调用方处理
+      return null;
     }
   }
 
@@ -203,21 +241,21 @@ class LoginSessionService {
 
       // 解密Cookie数据
       const decryptedSessions = sessions.map(session => {
-        try {
-          const cookies = this.decryptData(session.cookies);
+        const cookies = this.decryptData(session.cookies);
 
-          return {
-            ...session,
-            cookies
-          };
-        } catch (error) {
-          console.error(`解密会话 ${session.id} 失败:`, error);
+        if (cookies === null) {
+          console.error(`解密会话 ${session.id} 失败，会话数据可能已损坏`);
           return {
             ...session,
             cookies: null,
             decryptError: true
           };
         }
+
+        return {
+          ...session,
+          cookies
+        };
       });
 
       // 更新缓存
@@ -260,6 +298,14 @@ class LoginSessionService {
 
       // 解密Cookie数据
       const cookies = this.decryptData(session.cookies);
+
+      if (cookies === null) {
+        return {
+          success: false,
+          error: 'DecryptError',
+          message: '会话数据解密失败'
+        };
+      }
 
       return {
         success: true,

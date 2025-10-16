@@ -7,8 +7,7 @@ import {
   SettingOutlined,
   HistoryOutlined,
   FolderOutlined,
-  DesktopOutlined,
-  LoginOutlined
+  DesktopOutlined
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { setCurrentPage } from '../../store/slices/appSlice';
@@ -37,12 +36,7 @@ function Sidebar() {
       icon: <GlobalOutlined />,
       label: '平台管理'
     },
-    {
-      key: 'login-test',
-      icon: <LoginOutlined />,
-      label: '登录测试'
-    },
-    {
+        {
       key: 'articles',
       icon: <FolderOutlined />,
       label: '文章列表'

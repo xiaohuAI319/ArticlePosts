@@ -869,6 +869,15 @@ ipcMain.handle('autoLogin:getActiveLogins', async () => {
   }
 });
 
+ipcMain.handle('autoLogin:deactivateSession', async (event, sessionId) => {
+  try {
+    return await loginSessionService.deactivateSession(sessionId);
+  } catch (error) {
+    console.error('停用登录会话失败:', error);
+    throw error;
+  }
+});
+
 // 处理来自渲染进程的消息
 ipcMain.on('renderer-message', (event, data) => {
   console.log('来自渲染进程的消息:', data);

@@ -295,6 +295,94 @@ describe('PlatformAutoLoginService - T015平台自动化登录服务', () => {
       expect(statusResult.data.error).toContain('二维码加载失败');
     });
 
+    test('应该成功检测知乎Canvas二维码元素', async () => {
+      // 准备知乎平台配置，包含Canvas选择器
+      platform.config_schema.auth_config.qr_selector = 'canvas, .sign-in-qrcode img, img[alt*="二维码"]';
+
+      // 模拟Canvas元素检测
+      mockPage.evaluate.mockImplementation((fn) => {
+        // 模拟页面包含Canvas元素
+        return {
+          readyState: 'complete',
+          title: '知乎 - 有问题，就会有答案',
+          url: 'https://www.zhihu.com/signin',
+          images: [],
+          canvasElements: [
+            { tagName: 'CANVAS', className: '', id: '', width: 200, height: 200, visible: true, hasContext: true }
+          ],
+          bodyText: '打开知乎App\n在「我的页」右上角打开扫一扫'
+        };
+      });
+
+      // 设置Canvas元素检测成功
+      mockPage.waitForSelector.mockImplementation((selector) => {
+        if (selector === 'canvas') {
+          return Promise.resolve(true);
+        }
+        return Promise.reject(new Error('Element not found'));
+      });
+
+      mockPage.$.mockImplementation((selector) => {
+        if (selector === 'canvas') {
+          return {
+            screenshot: jest.fn().mockResolvedValue('canvas_qr_image_base64'),
+            getBoundingClientRect: jest.fn().mockReturnValue({ width: 200, height: 200 })
+          };
+        }
+        return null;
+      });
+
+      // 启动登录流程
+      const loginResult = await service.startPlatformLogin(platform.id);
+
+      // 等待异步登录流程完成
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 验证Canvas二维码检测成功
+      expect(mockPage.evaluate).toHaveBeenCalled();
+      expect(mockPage.waitForSelector).toHaveBeenCalledWith('canvas', { timeout: 3000 });
+      expect(mockPage.$).toHaveBeenCalledWith('canvas');
+    });
+
+    test('应该尝试多个Canvas相关选择器', async () => {
+      // 准备知乎平台配置，包含多个Canvas选择器
+      platform.config_schema.auth_config.qr_selector = 'canvas, .yidun_smsbox-qrcode--img, [class*="qr"] canvas';
+
+      const selectors = ['canvas', '.yidun_smsbox-qrcode--img', '[class*="qr"] canvas'];
+      let selectorIndex = 0;
+
+      // 模拟前两个选择器失败，第三个成功
+      mockPage.waitForSelector.mockImplementation((selector) => {
+        if (selectorIndex < 2) {
+          selectorIndex++;
+          return Promise.reject(new Error('Element not found'));
+        }
+        return Promise.resolve(true);
+      });
+
+      mockPage.$.mockImplementation((selector) => {
+        if (selector === '[class*="qr"] canvas') {
+          return {
+            screenshot: jest.fn().mockResolvedValue('canvas_qr_image_base64'),
+            getBoundingClientRect: jest.fn().mockReturnValue({ width: 180, height: 180 })
+          };
+        }
+        return null;
+      });
+
+      // 启动登录流程
+      const loginResult = await service.startPlatformLogin(platform.id);
+
+      // 等待异步登录流程完成
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 验证尝试了多个选择器
+      expect(mockPage.waitForSelector).toHaveBeenCalledTimes(3);
+      expect(mockPage.waitForSelector).toHaveBeenNthCalledWith(1, 'canvas', { timeout: 3000 });
+      expect(mockPage.waitForSelector).toHaveBeenNthCalledWith(2, '.yidun_smsbox-qrcode--img', { timeout: 3000 });
+      expect(mockPage.waitForSelector).toHaveBeenNthCalledWith(3, '[class*="qr"] canvas', { timeout: 3000 });
+    });
+
     test('应该处理二维码过期并自动刷新', async () => {
       // 设置二维码过期
       mockPage.$eval.mockImplementation((selector, callback) => {

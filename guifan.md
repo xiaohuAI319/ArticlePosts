@@ -44,6 +44,7 @@
 - **环境隔离**: 开发环境和生产环境使用不同的配置策略
 - **配置格式**: 使用JSON格式存储配置，支持嵌套键值访问
 - **安全性**: 所有敏感信息（API key、凭据等）必须加密存储和传输
+- **数据库位置**: SQLite数据库文件存储在 `src/data/app.db`，所有数据库操作都使用此路径
 
 ### 1.7 代码质量规范
 - **调试信息**: 生产环境代码中不允许有console.log等调试输出
@@ -62,6 +63,13 @@
   - 标准安装: `npm install`
   - 强制重装: `npm install --force`
   - 清理缓存: `rm -rf node_modules/.cache`
+- **原生模块编译**: Electron项目中的原生模块（如better-sqlite3）需要为Electron环境重新编译：
+  - 标准编译: `npx electron-rebuild`
+  - **强制重编译**: `npx electron-rebuild --force` (✅ 正确指令)
+  - 清理后重编译: `rm -rf node_modules && npm install && npx electron-rebuild --force`
+  - npm rebuild: `npm rebuild better-sqlite3` (仅适用于Node.js环境)
+  - 编译环境: Node.js v22.19.0 (NODE_MODULE_VERSION 127) + Electron v28.3.3 (NODE_MODULE_VERSION 119) + better-sqlite3@9.6.0
+  - **关键问题**: Electron内部使用Node.js NODE_MODULE_VERSION 119，开发环境使用NODE_MODULE_VERSION 127，必须用electron-rebuild为Electron环境编译
 
 ### 1.9 开发环境端口管理规范
 - **固定端口**: 开发环境统一使用3000端口，避免频繁更换端口
