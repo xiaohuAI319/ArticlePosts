@@ -10,6 +10,9 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
+// 模块加载即输出日志，用于确证命中文件
+console.log('[ZH_PUB_DBG] ZhihuPublisher module loaded:', __filename);
+
 class ZhihuPublisher {
   constructor() {
     this.browserManager = new BrowserManager();
@@ -20,6 +23,12 @@ class ZhihuPublisher {
     this.taskId = null;
     this.progressCallback = null;
     this.logCallback = null;
+
+    // 配置：默认关闭高级反检测（可按需开启）
+    this.enableAdvancedAntiDetection = false;
+    // 风控冷却（40362）相关
+    this.cooldownUntil = 0; // 时间戳，处于冷却期内则拒绝执行
+    this.COOLDOWN_MS = 2 * 60 * 60 * 1000; // 默认冷却2小时，可按需调整
   }
 
   /**
@@ -30,7 +39,9 @@ class ZhihuPublisher {
     this.progressCallback = progressCallback;
     this.logCallback = logCallback;
 
+    this.log('info', `[ZH_PUB_DBG] init taskId=${this.taskId}`);
     this.log('info', '初始化知乎发布器');
+    console.log(`[ZH_PUB_DBG] init taskId=${this.taskId}`);
     this.updateProgress(5, '初始化平台服务');
 
     try {
@@ -52,7 +63,15 @@ class ZhihuPublisher {
   async publish(articleData, sessionId = null) {
     try {
       this.log('info', '开始发布文章到知乎');
+      console.log(`[ZH_PUB_DBG] publish entry taskId=${this.taskId}`);
       this.updateProgress(15, '准备发布环境');
+      this.currentArticle = articleData;
+      // 冷却窗口检查：若仍在冷却期内则拒绝执行
+      if (this.cooldownUntil && Date.now() < this.cooldownUntil) {
+        const mins = Math.ceil((this.cooldownUntil - Date.now()) / 60000);
+        throw new Error(`知乎风控冷却中，剩余约 ${mins} 分钟后再试`);
+      }
+      this.currentArticle = articleData;
 
       // 1. 确保知乎平台已登录
       const zhihuSession = await this.ensureZhihuLoggedIn(sessionId);
@@ -65,6 +84,7 @@ class ZhihuPublisher {
       // 3. 导航到写作页面
       await this.navigateToWritePage();
       this.updateProgress(45, '已进入写作页面');
+      console.log(`[ZH_PUB_DBG] after navigateToWritePage url=${this.page.url()}`);
 
       // 4. 填充文章内容
       await this.fillArticleContent(articleData);
@@ -73,6 +93,10 @@ class ZhihuPublisher {
       // 5. 处理图片上传
       await this.handleImageUploads(articleData);
       this.updateProgress(85, '图片处理完成');
+
+      // 5.5 专栏收录（若可用）
+      await this.selectColumnIfAvailable();
+      this.updateProgress(88, '专栏收录已尝试');
 
       // 6. 发布文章
       const publishResult = await this.publishArticle();
@@ -159,52 +183,10 @@ class ZhihuPublisher {
           width: 1920 + Math.floor(Math.random() * 100), // 随机宽度
           height: 1080 + Math.floor(Math.random() * 100) // 随机高度
         },
-        stealth: true,
+        stealth: false,
         userAgent: randomUserAgent,
-        // 额外的反检测参数
-        args: [
-          '--disable-blink-features=AutomationControlled',
-          '--disable-features=VizDisplayCompositor',
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--disable-default-apps',
-          '--disable-sync',
-          '--disable-background-timer-throttling',
-          '--disable-renderer-backgrounding',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-client-side-phishing-detection',
-          '--disable-component-extensions-with-background-pages',
-          '--disable-default-apps',
-          '--disable-extensions',
-          '--disable-features=TranslateUI',
-          '--disable-ipc-flooding-protection',
-          '--disable-popup-blocking',
-          '--disable-prompt-on-repost',
-          '--disable-web-security',
-          '--disable-features=TranslateUI,BlinkGenPropertyTrees',
-          '--disable-ipc-flooding-protection',
-          '--enable-automation',
-          '--password-store=basic',
-          '--use-mock-keychain',
-          // 新增高级反检测参数
-          '--disable-gl-drawing-for-tests',
-          '--disable-gpu',
-          '--disable-background-networking',
-          '--disable-default-apps',
-          '--disable-hang-monitor',
-          '--disable-prompt-on-repost',
-          '--disable-sync',
-          '--disable-web-resources',
-          '--enable-automation',
-          '--no-first-run',
-          '--disable-ipc-flooding-protection',
-          '--enable-features=NetworkService',
-          '--enable-features=NetworkServiceInProcess',
-          '--disable-features=IsolateOrigins,site-per-process'
-        ]
+        // 精简参数：按 blog-auto-publishing-tools 思路，不使用反检测 flags
+        args: []
       });
 
       if (!browserResult.success) {
@@ -218,8 +200,22 @@ class ZhihuPublisher {
       this.page.setDefaultTimeout(60000);
       this.page.setDefaultNavigationTimeout(60000);
 
-      // 立即注入高级反检测脚本
-      await this.injectAdvancedAntiDetection();
+      // 页面控制台与错误监听（诊断刷新/脚本异常）
+      this.page.on('console', (msg) => {
+        try {
+          const type = msg.type();
+          const text = msg.text();
+          this.log(type === 'error' ? 'error' : 'info', `页面console[${type}]: ${text}`);
+        } catch (e) {
+          this.log('warn', `读取页面console失败: ${e.message}`);
+        }
+      });
+      this.page.on('pageerror', (err) => {
+        this.log('error', `页面脚本错误: ${err.message}`);
+      });
+
+      // 跳过反检测脚本注入（与 blog-auto-publishing-tools 对齐）
+      this.log('info', '跳过反检测脚本注入');
 
       // 如果是恢复的会话，需要恢复登录状态
       if (zhihuSession.sessionId) {
@@ -379,6 +375,21 @@ class ZhihuPublisher {
       });
 
       this.log('info', '已成功进入写作页面');
+      // 写作页加载后检测是否被风控拦截（40362）
+      try {
+        const bodyText = await this.page.evaluate(() => {
+          try { return document.body.innerText || ''; } catch (e) { return ''; }
+        });
+        const hit = (bodyText && (bodyText.includes('40362') || bodyText.includes('您当前请求存在异常') || bodyText.includes('"code":40362')));
+        if (hit) {
+          this.cooldownUntil = Date.now() + this.COOLDOWN_MS;
+          const mins = Math.ceil((this.cooldownUntil - Date.now()) / 60000);
+          this.log('warn', `检测到知乎风控(40362) 于 navigateToWritePage，进入冷却约 ${mins} 分钟`);
+          throw new Error(`知乎风控(40362)，已进入冷却，约 ${mins} 分钟后再试`);
+        }
+      } catch (e) {
+        this.log('warn', `风控检测过程异常（忽略继续）：${e.message}`);
+      }
     } catch (error) {
       this.log('error', `导航到写作页面失败: ${error.message}`);
       throw new Error('无法进入写作页面');
@@ -390,6 +401,8 @@ class ZhihuPublisher {
    */
   async fillArticleContent(articleData) {
     this.log('info', '开始填充文章内容');
+    this.log('info', `[ZH_PUB_DBG] fillArticleContent entry taskId=${this.taskId}`);
+    console.log(`[ZH_PUB_DBG] fillArticleContent entry taskId=${this.taskId}`);
 
     try {
       // 1. 先等待一下，模拟用户进入页面后的思考时间
@@ -399,6 +412,11 @@ class ZhihuPublisher {
       this.log('info', '开始填写标题');
       await this.fillTitle(articleData.title);
       this.updateProgress(45, '标题填写完成');
+      this.log('info', '[ZH_PUB_DBG] title filled, waiting stabilize');
+      console.log('[ZH_PUB_DBG] title filled, waiting stabilize');
+
+      // 标题后等待页面稳定（避免草稿保存导致的刷新/重渲染）
+      await this.waitForStabilizeAfterTitle();
 
       // 3. 模拟用户写完标题后的思考时间
       this.log('info', '标题填写完成，模拟思考时间...');
@@ -425,219 +443,218 @@ class ZhihuPublisher {
   }
 
   /**
-   * 填充文章标题 - 基于quickstart.md的简化实现，增加反检测策略
+   * 填充文章标题 - 稳健版（多选择器兜底 + 逐字输入）
    */
   async fillTitle(title) {
-    try {
-      this.log('info', '开始填充标题，尝试多种选择器策略');
+    this.log('info', '开始填充标题');
+    const titleSelectors = [
+      'textarea[placeholder*="请输入标题"]',
+      'textarea[placeholder*="输入文章标题"]',
+      'textarea[placeholder*="标题"]',
+      'input[placeholder*="请输入标题"]',
+      'input[placeholder*="输入文章标题"]',
+      'input[placeholder*="标题"]',
+      '.WriteIndex-titleInput textarea, .WriteIndex-titleInput input',
+      '.TitleInput textarea, .TitleInput input',
+      '[class*="title"] textarea, [class*="title"] input',
+      '[data-testid*="title"]',
+    ];
 
-      // 添加随机延迟，模拟人类操作
-      await this.randomDelay(1000, 3000);
-
-      // 首先尝试quickstart.md中的简洁选择器策略
-      try {
-        await this.page.waitForSelector('[data-placeholder="输入文章标题"]', {
-          timeout: 5000
-        });
-
-        // 模拟人类点击和输入延迟
-        await this.simulateHumanTyping('[data-placeholder="输入文章标题"]', title);
-        this.log('info', `使用主选择器填充标题成功: ${title}`);
-        return;
-      } catch (primaryError) {
-        this.log('warn', `主选择器失败: ${primaryError.message}`);
-      }
-
-      // 扩展备用方案：使用更多可能的选择器
-      const titleSelectors = [
-        // data-placeholder 属性选择器
-        '[data-placeholder*="标题"]',
-        '[data-placeholder*="请输入"]',
-        '[data-placeholder*="输入"]',
-
-        // placeholder 属性选择器
-        'input[placeholder*="标题"]',
-        'input[placeholder*="请输入标题"]',
-        'input[placeholder*="输入文章标题"]',
-        'input[placeholder*="请输入"]',
-        'input[placeholder*="标题"]',
-        'textarea[placeholder*="标题"]',
-
-        // 知乎特定的类名选择器
-        '.WriteIndex-titleInput input',
-        '.TitleInput input',
-        '.editor-title input',
-        '.title-input input',
-        '.ArticleTitle-input',
-        '.PublishTitle-input',
-
-        // 通用类名选择器
-        '[class*="title"] input',
-        '[class*="Title"] input',
-        '[class*="article"] input[placeholder*="标题"]',
-
-        // 编辑器相关选择器
-        '.editor input[type="text"]',
-        '.DraftEditor-input',
-        '.public-DraftEditorPlaceholder-input',
-
-        // 最后的通用选择器
-        'input[type="text"]',
-        'textarea[placeholder]'
-      ];
-
+    const tryFill = async () => {
       for (const selector of titleSelectors) {
         try {
-          // 先尝试找到元素
-          const element = await this.page.$(selector);
-          if (element) {
-            // 检查元素是否可见和可交互
-            const isVisible = await this.page.evaluate(el => {
-              const rect = el.getBoundingClientRect();
-              return rect.width > 0 && rect.height > 0 && el.offsetParent !== null;
-            }, element);
+          await this.page.waitForSelector(selector, { timeout: 2000 });
+          const el = await this.page.$(selector);
+          if (!el) continue;
 
-            if (isVisible) {
-              await element.click({ clickCount: 2 }); // 双击清空
-              await this.page.keyboard.type(title);
-              this.log('info', `使用选择器填充标题成功: ${selector}`);
-              return;
-            }
+          // 点击聚焦
+          try {
+            await el.click({ clickCount: 1 });
+          } catch {
+            await this.page.click(selector);
+          }
+
+          // 选中并清空旧文本
+          await this.page.keyboard.down('Control');
+          await this.page.keyboard.press('a');
+          await this.page.keyboard.up('Control');
+          await this.page.keyboard.press('Delete');
+
+          // 逐字输入（延迟更贴近人类打字）
+          await this.page.type(selector, title, { delay: 80 });
+
+          // 简单校验
+          const typed = await this.page.evaluate(s => {
+            const node = document.querySelector(s);
+            if (!node) return '';
+            return node.value || node.textContent || '';
+          }, selector);
+
+          if (typed && typed.length >= Math.min(title.length, 2)) {
+            // 移出标题焦点，避免后续粘贴正文时粘到标题（使用点击空白区而非Tab）
+            await this.page.mouse.click(50, 50);
+            await this.page.waitForTimeout(300);
+            this.log('info', `标题填充完成并移出焦点，选择器: ${selector}`);
+            return true;
+          } else {
+            this.log('warn', `标题填充长度校验未通过，选择器: ${selector}，实际: ${typed.length}`);
           }
         } catch (e) {
           // 继续尝试下一个选择器
         }
       }
+      return false;
+    };
 
-      // 最后的备用方案：通过页面内容查找
-      this.log('warn', '所有CSS选择器都失败，尝试通过页面内容查找');
-      try {
-        await this.page.evaluate((titleText) => {
-          // 查找所有可能包含标题的输入框
-          const inputs = document.querySelectorAll('input, textarea');
-          for (const input of inputs) {
-            const placeholder = input.placeholder || '';
-            const className = input.className || '';
-            const id = input.id || '';
-
-            // 检查是否是标题输入框
-            if (placeholder.includes('标题') ||
-                placeholder.includes('请输入') ||
-                className.includes('title') ||
-                className.includes('Title') ||
-                id.includes('title') ||
-                id.includes('Title')) {
-
-              input.focus();
-              input.value = titleText;
-
-              // 触发change事件
-              input.dispatchEvent(new Event('input', { bubbles: true }));
-              input.dispatchEvent(new Event('change', { bubbles: true }));
-
-              return true;
-            }
-          }
-          return false;
-        }, title);
-
-        this.log('info', `通过页面内容查找填充标题成功: ${title}`);
-        return;
-
-      } catch (contentError) {
-        this.log('warn', `页面内容查找失败: ${contentError.message}`);
+    try {
+      let ok = await tryFill();
+      if (!ok) {
+        this.log('warn', '首次定位标题失败，滚动到顶部并重试');
+        await this.page.evaluate(() => window.scrollTo(0, 0));
+        await this.page.waitForTimeout(800);
+        ok = await tryFill();
       }
 
-      this.log('error', `所有标题填充方法都失败，无法找到标题输入框`);
-      throw new Error('无法找到标题输入框');
+      if (!ok) {
+        this.log('warn', '使用兜底方案：页面顶部直接键入标题');
+        await this.page.click('body', { position: { x: 120, y: 120 } }).catch(() => {});
+        await this.page.keyboard.type(title, { delay: 80 });
+        // 改为点击空白区移出焦点
+        await this.page.mouse.click(50, 50);
+        await this.page.waitForTimeout(300);
+      }
+
+      this.log('info', '标题填充流程结束');
     } catch (error) {
       this.log('error', `填充标题失败: ${error.message}`);
-      throw error;
+      throw new Error('无法找到或填充标题输入框');
     }
   }
 
   /**
-   * 填充正文内容 - 修复焦点问题，确保虚字被清除
+   * 填充正文内容 - 使用“复制-粘贴”策略
    */
-  async fillContent(content) {
+  async fillContent(htmlContent) {
+    this.log('info', '开始使用“复制-粘贴”策略填充正文内容');
+    let tempPage = null;
     try {
-      // 先点击编辑器获得焦点
-      const editorSelector = '.RichText, .public-DraftEditor-content, [contenteditable="true"]';
+      // 1. 创建一个新的临时页面
+      this.log('info', '创建一个临时页面用于复制内容');
+      tempPage = await this.browser.newPage();
+      await tempPage.setContent(htmlContent, { waitUntil: 'domcontentloaded' });
+      await tempPage.waitForTimeout(1000);
+
+      // 2. 在临时页面中执行“全选”和“复制”
+      this.log('info', '在临时页面中执行“全选”和“复制”');
+      await tempPage.keyboard.down('Control');
+      await tempPage.keyboard.press('A');
+      await tempPage.keyboard.up('Control');
+      await tempPage.waitForTimeout(400);
+
+      await tempPage.keyboard.down('Control');
+      await tempPage.keyboard.press('C');
+      await tempPage.keyboard.up('Control');
+      await tempPage.waitForTimeout(400);
+
+      this.log('info', '内容已复制到剪贴板');
+
+      // 3. 关闭临时页面
+      await tempPage.close();
+      tempPage = null;
+
+      // 4. 切回知乎编辑器页面并粘贴
+      this.log('info', '切换回知乎编辑器并执行“粘贴”');
+      await this.page.bringToFront();
+
+      // 先 blur 所有输入，避免标题保留焦点
+      await this.page.evaluate(() => {
+        document.querySelectorAll('input, textarea').forEach(el => {
+          try { el.blur(); } catch (e) {}
+        });
+      });
+
+      // 确保编辑器选择器
+      const editorSelector = '.public-DraftEditor-content, .RichText, [contenteditable="true"]';
       await this.page.waitForSelector(editorSelector, { timeout: 10000 });
 
-      // 多重焦点确保策略
-      this.log('info', '确保编辑器获得正确焦点');
-
-      // 1. 先点击编辑器
+      // 点击编辑器以确保焦点
       await this.page.click(editorSelector);
-      await this.randomDelay(500, 1000);
+      await this.page.waitForTimeout(500);
 
-      // 2. 使用evaluate方法直接设置焦点
-      await this.page.evaluate(() => {
-        const editor = document.querySelector('.public-DraftEditor-content, [contenteditable="true"]');
-        if (editor) {
-          editor.focus();
-          // 强制触发focus事件
-          editor.dispatchEvent(new Event('focus', { bubbles: true }));
-        }
-      });
+      // 校验当前焦点是否在编辑器
+      const isEditorFocused = await this.page.evaluate((selector) => {
+        const active = document.activeElement;
+        const editor = document.querySelector(selector);
+        if (!active || !editor) return false;
+        // active 本身是编辑器或其子节点
+        return active === editor || editor.contains(active);
+      }, editorSelector);
 
-      await this.randomDelay(500, 1000);
+      if (!isEditorFocused) {
+        this.log('warn', '编辑器未获得焦点，重试点击');
+        await this.page.click(editorSelector);
+        await this.page.waitForTimeout(400);
+      }
 
-      // 3. 清空现有内容 - 确保虚字被清除
-      this.log('info', '清空编辑器内容，清除虚字');
+      // 再次检测，若仍不在编辑器，则强制滚动到顶部并再点一次
+      const focusedFinal = await this.page.evaluate((selector) => {
+        const active = document.activeElement;
+        const editor = document.querySelector(selector);
+        return active && editor && (active === editor || editor.contains(active));
+      }, editorSelector);
+
+      if (!focusedFinal) {
+        await this.page.evaluate(() => window.scrollTo(0, 0));
+        await this.page.waitForTimeout(300);
+        await this.page.click(editorSelector);
+        await this.page.waitForTimeout(300);
+      }
+
+      // 执行粘贴
       await this.page.keyboard.down('Control');
-      await this.page.keyboard.press('a');
+      await this.page.keyboard.press('V');
       await this.page.keyboard.up('Control');
-      await this.page.keyboard.press('Delete');
-      await this.randomDelay(1000, 2000);
 
-      // 4. 再次确认焦点和清空
-      await this.page.evaluate(() => {
-        const editor = document.querySelector('.public-DraftEditor-content, [contenteditable="true"]');
-        if (editor) {
-          // 确保编辑器为空
-          editor.innerHTML = '';
-          editor.focus();
-        }
-      });
-
-      await this.randomDelay(500, 1000);
-
-      // 5. 粘贴内容
-      this.log('info', '粘贴正文内容');
-      await this.page.evaluate((htmlContent) => {
-        const editor = document.querySelector('.public-DraftEditor-content, [contenteditable="true"]');
-        if (editor) {
-          editor.innerHTML = htmlContent;
-          // 触发多个事件确保内容被正确识别
-          editor.dispatchEvent(new Event('input', { bubbles: true }));
-          editor.dispatchEvent(new Event('change', { bubbles: true }));
-          editor.dispatchEvent(new Event('paste', { bubbles: true }));
-        }
-      }, content);
-
-      this.log('info', `正文内容已填充，长度: ${content.length}`);
-
-      // 6. 滚动到页面底部，确保能看到发布按钮
-      this.log('info', '滚动到页面底部查看发布按钮');
-      await this.page.evaluate(() => {
-        window.scrollTo(0, document.body.scrollHeight);
-      });
-      await this.randomDelay(1000, 2000);
-
-      // 7. 再次滚动一点点，确保发布按钮完全可见
-      await this.page.evaluate(() => {
-        window.scrollBy(0, 200);
-      });
-      await this.randomDelay(500, 1000);
-
-      // 模拟用户完成内容填写后的检查动作
-      await this.randomDelay(1000, 2000);
+      this.log('info', '正文内容粘贴完成');
+      this.log('info', '[ZH_PUB_DBG] content pasted');
+      console.log('[ZH_PUB_DBG] content pasted');
+      await this.page.waitForTimeout(1500);
 
     } catch (error) {
-      this.log('error', `内容填充失败: ${error.message}`);
+      this.log('error', `使用“复制-粘贴”策略填充内容失败: ${error.message}`);
+      if (tempPage) {
+        await tempPage.close();
+      }
       throw new Error('无法填充正文内容');
+    }
+  }
+
+  /**
+   * 在标题输入后等待页面稳定，避免自动保存导致的刷新/重渲染
+   */
+  async waitForStabilizeAfterTitle() {
+    try {
+      this.log('info', '标题输入后等待页面稳定...');
+      const startUrl = this.page.url();
+      let navigated = false;
+
+      const onNavigated = () => { navigated = true; };
+      this.page.once('framenavigated', onNavigated);
+
+      // 等待短时间让草稿保存/网络请求完成
+      await this.page.waitForTimeout(2000);
+
+      // 如果发生了导航或URL变化，则重新进入写作页并等待编辑器就绪
+      const currentUrl = this.page.url();
+      if (navigated || currentUrl !== startUrl || !currentUrl.includes('/write')) {
+        this.log('warn', '检测到页面刷新/导航，重新进入写作页并校准编辑器焦点');
+        await this.page.goto('https://zhuanlan.zhihu.com/write', { waitUntil: 'networkidle2' });
+        await this.page.waitForSelector('.RichText, .public-DraftEditor-content, [contenteditable="true"]', { timeout: 15000 });
+      } else {
+        this.log('info', '页面保持稳定，继续填充正文');
+      }
+    } catch (e) {
+      this.log('warn', `页面稳定等待过程出现问题，但继续流程: ${e.message}`);
     }
   }
 
@@ -719,7 +736,7 @@ class ZhihuPublisher {
    * 创建临时图片文件
    */
   async createTempImageFile(imageData, index) {
-    const tempDir = path.join(process.cwd, 'temp', 'images');
+    const tempDir = path.join(process.cwd(), 'temp', 'images');
 
     // 确保临时目录存在
     if (!fs.existsSync(tempDir)) {
@@ -839,225 +856,303 @@ class ZhihuPublisher {
   }
 
   /**
-   * 发布文章 - 增强发布按钮查找和点击策略
+   * 发布文章 - 参考工具的完整流程（稳健化）
    */
+  /**
+   * 对齐 blog-auto-publishing-tools：专栏收录（若存在则勾选）
+   */
+  async selectColumnIfAvailable() {
+    try {
+      this.log('info', '尝试勾选“专栏收录”');
+      const candidates = [
+        'label[for="PublishPanel-columnLabel-1"]',
+        'label[for*="PublishPanel-columnLabel"]',
+        '[class*="PublishPanel"] label',
+      ];
+      let clicked = false;
+      for (const sel of candidates) {
+        try {
+          const el = await this.page.$(sel);
+          if (el) {
+            try { await this.page.evaluate((n)=>{ try{ n.scrollIntoView({block:"center"});}catch{} }, el); } catch {}
+            try { await el.click({ delay: 50 }); } catch { await this.page.evaluate((n)=>{ try{ n.click(); }catch{} }, el); }
+            clicked = true;
+            this.log('info', `已尝试勾选“专栏收录” via ${sel}`);
+            break;
+          }
+        } catch {}
+      }
+      if (!clicked) this.log('warn', '未发现“专栏收录”控件，跳过');
+    } catch (e) {
+      this.log('warn', `专栏收录步骤异常，跳过：${e.message}`);
+    }
+  }
+
   async publishArticle() {
     this.log('info', '开始发布文章');
+    this.log('info', `[ZH_PUB_DBG] publishArticle start url=${this.page.url()}`);
+    console.log(`[ZH_PUB_DBG] publishArticle start url=${this.page.url()}`);
+    const tryOnce = async () => {
+      // 等编辑器就绪后短暂稳定等待，避免中途切换到 edit/预览态
+      await this.page.waitForSelector('.RichText, .public-DraftEditor-content, [contenteditable="true"]', { timeout: 15000 }).catch(() => {});
+      await this.page.waitForTimeout(1500);
 
-    try {
-      // 添加随机延迟，模拟人类操作
-      await this.randomDelay(2000, 5000);
-
-      // 确保页面滚动到底部，能看到发布按钮
-      this.log('info', '滚动到页面底部查找发布按钮');
+      // 预滚动：尝试滚动页面与典型容器以暴露底部按钮
+      this.log('info', '尝试滚动容器以暴露“发布”按钮');
       await this.page.evaluate(() => {
-        window.scrollTo(0, document.body.scrollHeight);
-      });
-      await this.randomDelay(1000, 2000);
+        const containers = [
+          document.scrollingElement,
+          document.querySelector('main'),
+          document.querySelector('.WriteIndex'),
+          document.querySelector('.ContentLayout'),
+          document.querySelector('[class*="Editor"]'),
+          document.body
+        ].filter(Boolean);
+        for (const el of containers) {
+          try { el.scrollTop = el.scrollHeight; } catch {}
+        }
+        // 再回到顶部，确保后续定位不受遮挡
+        for (const el of containers) {
+          try { el.scrollTop = 0; } catch {}
+        }
+      }).catch(() => {});
 
-      // 多重发布按钮查找策略
-      const publishButton = await this.findPublishButtonEnhanced();
-      if (!publishButton) {
-        throw new Error('未找到发布按钮');
-      }
-
-      this.log('info', '找到发布按钮，准备点击');
-
-      // 滚动到发布按钮可见位置
-      await this.page.evaluate((element) => {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, publishButton);
-      await this.randomDelay(1000, 2000);
-
-      // 模拟人类点击发布按钮
-      await this.simulateHumanClick(publishButton);
-
-      this.log('info', '已点击发布按钮，等待发布完成');
-
-      // 等待页面响应，检测是否被重定向到反爬虫页面
-      await this.page.waitForTimeout(3000);
-
-      // 检测并处理反爬虫页面
-      const antiBotHandled = await this.handleAntiBotDetection();
-      if (!antiBotHandled) {
-        this.log('warn', '可能遇到反爬虫检测，但继续尝试发布流程');
-      }
-
-      // 等待发布完成 - 检查多种成功标志
-      await this.waitForPublishComplete();
-
-      this.log('info', '发布流程执行完成');
-
-      // 获取发布结果
-      const publishResult = await this.getPublishResult();
-
-      this.log('info', '文章发布完成');
-      return publishResult;
-
-    } catch (error) {
-      this.log('warn', `主发布流程失败，尝试备用方案: ${error.message}`);
-
-      // 备用方案：使用更复杂的发布流程
+      // 发布前二次校验：如标题为空则补填一次
       try {
-        // 寻找发布按钮
-        const publishButton = await this.findPublishButton();
-        if (!publishButton) {
-          throw new Error('未找到发布按钮');
-        }
-
-        // 模拟人类点击发布按钮
-        await this.simulateHumanClick(publishButton);
-
-        // 等待发布确认对话框
-        await this.page.waitForTimeout(2000);
-
-        // 再次检测反爬虫页面
-        await this.handleAntiBotDetection();
-
-        // 确认发布
-        const confirmButton = await this.findPublishConfirmButton();
-        if (confirmButton) {
-          await this.simulateHumanClick(confirmButton);
-        }
-
-        // 等待发布完成，期间多次检查反爬虫页面
-        for (let i = 0; i < 6; i++) {
-          await this.page.waitForTimeout(1000);
-          await this.handleAntiBotDetection();
-        }
-
-        // 获取发布结果
-        const publishResult = await this.getPublishResult();
-
-        this.log('info', '使用备用方案发布成功');
-        return publishResult;
-
-      } catch (fallbackError) {
-        this.log('error', `备用方案也失败: ${fallbackError.message}`);
-
-        // 最后的尝试：直接检查当前URL是否已经是发布成功的页面
-        const currentUrl = this.page.url();
-        if (currentUrl.includes('/p/')) {
-          this.log('warn', '发布可能已成功，当前URL包含文章ID');
-          return {
-            success: true,
-            url: currentUrl,
-            articleId: currentUrl.match(/\/p\/(\d+)/)?.[1],
-            publishedAt: new Date().toISOString()
-          };
-        }
-
-        throw new Error('发布文章失败');
-      }
-    }
-  }
-
-  /**
-   * 增强的发布按钮查找策略
-   */
-  async findPublishButtonEnhanced() {
-    this.log('info', '使用增强策略查找发布按钮');
-
-    // 先滚动到页面底部
-    await this.page.evaluate(() => {
-      window.scrollTo(0, document.body.scrollHeight);
-    });
-    await this.randomDelay(1000);
-
-    // 多种发布按钮选择器
-    const publishSelectors = [
-      // 知乎特定的选择器
-      '[data-za-detail-view-element_name="发布文章按钮"]',
-      '[data-za-detail-view-element_name="发布"]',
-      '[data-za-detail-view-element_name*="发布"]',
-
-      // 通用发布按钮选择器
-      'button[type="submit"]',
-      'button[class*="publish"]',
-      'button[class*="Publish"]',
-      'button[class*="primary"]',
-      '.Button--primary',
-      '.publish-button',
-      '.PublishButton',
-
-      // 文本匹配的按钮
-      'button:contains("发布")',
-      'button:contains("发表")',
-      'button:contains("提交")',
-      'button:contains("发布文章")',
-
-      // 底部固定按钮
-      '.fixed-bottom button',
-      '.sticky-bottom button',
-      'button[fixed="bottom"]'
-    ];
-
-    // 先尝试直接查找
-    for (const selector of publishSelectors) {
-      try {
-        let button = null;
-
-        if (selector.includes(':contains(')) {
-          // 文本匹配
-          const text = selector.match(/:contains\("([^"]+)"\)/)[1];
-          const buttons = await this.page.$$('button');
-          for (const btn of buttons) {
-            const elementText = await btn.evaluate(el => el.textContent);
-            if (elementText.includes(text)) {
-              button = btn;
-              break;
+        const titleSelCandidates = [
+          'textarea[placeholder*="请输入标题"]',
+          'textarea[placeholder*="标题"]',
+          'input[placeholder*="请输入标题"]',
+          'input[placeholder*="标题"]'
+        ];
+        for (const s of titleSelCandidates) {
+          const el = await this.page.$(s);
+          if (el) {
+            const cur = await this.page.evaluate(elm => (elm.value || elm.textContent || '').trim(), el);
+            if (!cur && this.currentArticle && this.currentArticle.title) {
+              try { await el.click({ clickCount: 1 }); } catch {}
+              await this.page.keyboard.down('Control'); await this.page.keyboard.press('a'); await this.page.keyboard.up('Control');
+              await this.page.keyboard.press('Delete');
+              await this.page.type(s, this.currentArticle.title, { delay: 60 });
+              await this.page.waitForTimeout(500);
+              // 失焦防止粘贴干扰标题
+              await this.page.mouse.click(50, 50);
+              await this.page.waitForTimeout(200);
             }
+            break;
           }
-        } else {
-          // CSS选择器
-          button = await this.page.$(selector);
         }
+      } catch {}
+      // 1) 寻找并点击“发布”按钮
+      this.log('info', '定位“发布”按钮');
+      const publishSelectors = [
+        '[data-za-detail-view-element_name="发布文章按钮"]',
+        'button[type="submit"]',
+        '.PublishButton',
+        '.publish-button',
+        '[data-testid*="publish"]',
+        '[data-action*="publish"]'
+      ];
+      let publishBtn = null;
 
-        if (button) {
-          // 检查按钮是否可见
-          const isVisible = await this.page.evaluate(el => {
-            const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0 &&
-                   rect.top >= 0 && rect.bottom <= window.innerHeight;
-          }, button);
+      // 优先属性选择器
+      for (const sel of publishSelectors) {
+        try {
+          await this.page.waitForSelector(sel, { timeout: 1500 });
+          const el = await this.page.$(sel);
+          if (el) { publishBtn = el; this.log('info', `使用选择器找到发布按钮: ${sel}`); break; }
+        } catch {}
+      }
+      // 兜底：遍历所有按钮，通过文本包含匹配
+      if (!publishBtn) {
+        const buttons = await this.page.$$('button');
+        for (const btn of buttons) {
+          try {
+            const txt = await btn.evaluate(el => (el.textContent || '').trim());
+            if (txt.includes('发布') || txt.includes('发表') || txt.includes('提交')) { publishBtn = btn; this.log('info', `通过文本匹配找到发布按钮: ${txt}`); break; }
+          } catch {}
+        }
+      }
+      if (!publishBtn) {
+        // 记录所有按钮文本，辅助诊断
+        const allTexts = await this.page.evaluate(() => {
+          return Array.from(document.querySelectorAll('button, [role="button"]'))
+            .map(b => (b.textContent || '').trim())
+            .filter(t => t);
+        }).catch(() => []);
+        this.log('warn', `未找到“发布”按钮，当前页面按钮文本清单: ${JSON.stringify(allTexts.slice(0, 50))}`);
+        throw new Error('未找到“发布”按钮');
+      }
 
-          if (isVisible) {
-            this.log('info', `找到可见的发布按钮: ${selector}`);
-            return button;
-          }
+      // 尝试将按钮滚动到可视区域并点击，失败则用evaluate触发
+      this.log('info', '[ZH_PUB_DBG] ready to click publish');
+      console.log('[ZH_PUB_DBG] ready to click publish');
+      // 点击前等待按钮可用（非 disabled 且可见）
+      try {
+        await this.page.waitForFunction((x) => {
+          const el = document.evaluate(x, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+          if (!el) return false;
+          const disabled = el.getAttribute('disabled') !== null || el.ariaDisabled === 'true';
+          const style = window.getComputedStyle(el);
+          return !disabled && style.visibility !== 'hidden' && style.display !== 'none';
+        }, { timeout: 20000 }, '//button[contains(normalize-space(.),"发布")]');
+      } catch {}
+      try {
+        await this.page.evaluate((el) => { try { el.scrollIntoView({ block: 'center' }); } catch {} }, publishBtn);
+      } catch {}
+      try {
+        await publishBtn.click();
+      } catch (e) {
+        this.log('warn', `按钮直接点击失败，尝试evaluate触发: ${e.message}`);
+        await this.page.evaluate((el) => { try { el.click(); } catch {} }, publishBtn);
+      }
+
+      // 2) 在弹层/对话框中点击“确认发布”
+      this.log('info', '等待弹层并点击“确认发布”');
+      await this.page.waitForTimeout(800);
+      const confirmTexts = ['确认发布', '确认', '确定', '发布文章', '发布'];
+      let confirmBtn = null;
+
+      // 在典型弹层/底栏容器内查找（部分页面发布按钮在底栏/弹层内）
+      const dialogContainers = await this.page.$$('.modal, .dialog, .popup, [role="dialog"], [class*="Footer"], [class*="Bottom"], [class*="Bar"]');
+      const probeInContainer = async (container) => {
+        const btns = await container.$$('button, [role="button"]');
+        for (const b of btns) {
+          const t = await b.evaluate(el => (el.textContent || '').trim());
+          if (confirmTexts.some(k => t.includes(k))) return b;
+        }
+        return null;
+      };
+      for (const container of dialogContainers) {
+        confirmBtn = await probeInContainer(container);
+        if (confirmBtn) break;
+      }
+      // 兜底全局按钮文本匹配
+      if (!confirmBtn) {
+        const allBtns = await this.page.$$('button, [role="button"]');
+        for (const b of allBtns) {
+          const t = await b.evaluate(el => (el.textContent || '').trim());
+          if (confirmTexts.some(k => t.includes(k))) { confirmBtn = b; break; }
+        }
+      }
+      if (!confirmBtn) this.log('warn', '未检测到“确认发布”按钮，可能不需要确认');
+
+      // 点击确认（若存在），并等待导航
+      const waitNav = this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }).catch(() => null);
+      if (confirmBtn) {
+        this.log('info', '[ZH_PUB_DBG] ready to click confirm');
+        console.log('[ZH_PUB_DBG] ready to click confirm');
+        await confirmBtn.click();
+      }
+      const navResult = await waitNav;
+
+      // 3) 结果解析与预览态识别
+      const currentUrl = this.page.url();
+      this.log('info', `[ZH_PUB_DBG] tryOnce url=${currentUrl}`);
+      console.log(`[ZH_PUB_DBG] tryOnce url=${currentUrl}`);
+      // 发布尝试后检测是否触发风控（40362）
+      try {
+        const bodyText2 = await this.page.evaluate(() => {
+          try { return document.body.innerText || ''; } catch (e) { return ''; }
+        });
+        const hit2 = (bodyText2 && (bodyText2.includes('40362') || bodyText2.includes('您当前请求存在异常') || bodyText2.includes('"code":40362')));
+        if (hit2) {
+          this.cooldownUntil = Date.now() + this.COOLDOWN_MS;
+          const mins2 = Math.ceil((this.cooldownUntil - Date.now()) / 60000);
+          this.log('warn', `检测到知乎风控(40362) 于 afterPublishAttempt，进入冷却约 ${mins2} 分钟`);
+          throw new Error(`知乎风控(40362)，已进入冷却，约 ${mins2} 分钟后再试`);
         }
       } catch (e) {
-        // 继续尝试下一个选择器
+        this.log('warn', `风控检测过程异常（忽略继续）：${e.message}`);
       }
-    }
+      const isArticle = /\/p\/\d+/.test(currentUrl);
+      const inEdit = /\/p\/\d+\/edit/.test(currentUrl);
+      const looksPreview = !currentUrl || currentUrl === 'about:blank' || currentUrl.includes('/edit') || currentUrl.includes('/preview');
 
-    // 如果直接查找失败，尝试滚动查找
-    this.log('info', '直接查找失败，尝试滚动查找发布按钮');
+      if (isArticle) {
+        const res = await this.getPublishResult();
+        if (res && res.success) { this.log('info', '文章发布成功'); return res; }
+      }
 
-    // 分段滚动查找
-    for (let scrollY = 0; scrollY < 3000; scrollY += 500) {
-      await this.page.evaluate((y) => {
-        window.scrollTo(0, y);
-      }, scrollY);
-      await this.randomDelay(500);
-
-      // 在每个滚动位置检查按钮
-      for (const selector of publishSelectors.slice(0, 5)) { // 只检查前5个最可能的选择器
+      // 如落入编辑态，先就地补救一次：补标题（如需）并再次点击发布
+      if (inEdit) {
+        this.log('warn', '当前处于编辑态(/edit)，尝试就地补救并再次发布');
         try {
-          const button = await this.page.$(selector);
-          if (button) {
-            this.log('info', `通过滚动找到发布按钮: ${selector} 在位置 ${scrollY}`);
-            return button;
+          const titleSel = 'textarea[placeholder*="请输入标题"],textarea[placeholder*="标题"],input[placeholder*="请输入标题"],input[placeholder*="标题"]';
+          const el = await this.page.$(titleSel);
+          if (el) {
+            const cur = await this.page.evaluate(elm => (elm.value || elm.textContent || '').trim(), el);
+            if (!cur && this.currentArticle && this.currentArticle.title) {
+              await el.click({ clickCount: 1 }).catch(()=>{});
+              await this.page.keyboard.down('Control'); await this.page.keyboard.press('a'); await this.page.keyboard.up('Control');
+              await this.page.keyboard.press('Delete');
+              await this.page.type(titleSel, this.currentArticle.title, { delay: 60 });
+              await this.page.waitForTimeout(600);
+            }
           }
-        } catch (e) {
-          // 继续
+        } catch {}
+
+        const [btnAgain] = await this.page.$x('//button[contains(normalize-space(.),"发布")]');
+        if (btnAgain) {
+          try { await this.page.evaluate(el => el.scrollIntoView({block:'center'}), btnAgain); } catch {}
+          try {
+            await this.page.waitForFunction((x) => {
+              const el = document.evaluate(x, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+              if (!el) return false;
+              const disabled = el.getAttribute('disabled') !== null || el.ariaDisabled === 'true';
+              const style = window.getComputedStyle(el);
+              return !disabled && style.visibility !== 'hidden' && style.display !== 'none';
+            }, { timeout: 20000 }, '//button[contains(normalize-space(.),"发布")]');
+          } catch {}
+          try { await btnAgain.click(); } catch { await this.page.evaluate(el => el.click(), btnAgain); }
+          await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }).catch(()=>{});
+        }
+
+        const url2 = this.page.url();
+        if (/\/p\/\d+($|[^/])/.test(url2) && !/\/edit/.test(url2)) {
+          const res2 = await this.getPublishResult();
+          if (res2 && res2.success) { this.log('info', '编辑态补救后发布成功'); return res2; }
         }
       }
-    }
 
-    this.log('error', '未找到任何发布按钮');
-    return null;
+      // 若看起来进入预览/编辑态，认为未最终发布
+      if (looksPreview || !isArticle) {
+        this.log('warn', `未进入文章页，当前URL: ${currentUrl || '空'}，将视为预览/中间态`);
+        throw new Error('预览或中间态，尚未完成发布');
+      }
+
+      // 默认返回当前解析
+      const res = await this.getPublishResult();
+      return res;
+    };
+
+    try {
+      // 首次尝试
+      const first = await tryOnce();
+      if (first && first.success) return first;
+
+      // 一次重试：回到写作页再走发布流程
+      this.log('warn', '准备重试发布流程：返回写作页');
+      await this.page.goto('https://zhuanlan.zhihu.com/write', { waitUntil: 'networkidle2' });
+      await this.page.waitForSelector('.RichText, .public-DraftEditor-content, [contenteditable="true"]', { timeout: 15000 }).catch(() => {});
+      await this.page.waitForTimeout(1000);
+
+      const second = await tryOnce();
+      if (second && second.success) return second;
+
+      // 若仍失败，给出诊断信息
+      const url = this.page.url();
+      const title = await this.page.title();
+      this.log('error', `发布失败：两次尝试均未进入文章页。当前URL: ${url}, 页面标题: ${title}`);
+      throw new Error('发布文章失败');
+
+    } catch (error) {
+      this.log('error', `发布文章失败: ${error.message}`);
+      throw new Error('发布文章失败');
+    }
   }
+
+
 
   /**
    * 等待发布完成 - 检查多种成功标志
@@ -1250,31 +1345,37 @@ class ZhihuPublisher {
   }
 
   /**
-   * 获取发布结果
+   * 获取发布结果（严格判定，仅当进入非 /edit 的 /p/{id} 页面才算成功）
    */
   async getPublishResult() {
     try {
       const currentUrl = this.page.url();
       const title = await this.page.title();
+      const inEdit = /\/p\/\d+\/edit/.test(currentUrl);
+      this.log('info', `[ZH_PUB_DBG] getPublishResult url=${currentUrl} inEdit=${inEdit}`);
+      console.log(`[ZH_PUB_DBG] getPublishResult url=${currentUrl} inEdit=${inEdit}`);
 
-      // 尝试从URL中提取文章ID
-      let articleId = null;
-      let publishedUrl = currentUrl;
+      const m = currentUrl.match(/\/p\/(\d+)/);
+      const articleId = m ? m[1] : null;
+      const isPublished = !!articleId && !/\/edit/.test(currentUrl);
+      const publishedUrl = articleId ? `https://zhuanlan.zhihu.com/p/${articleId}` : currentUrl;
 
-      const urlMatch = currentUrl.match(/\/p\/(\d+)/);
-      if (urlMatch) {
-        articleId = urlMatch[1];
-        publishedUrl = `https://zhuanlan.zhihu.com/p/${articleId}`;
+      if (isPublished) {
+        return {
+          success: true,
+          url: publishedUrl,
+          articleId,
+          title,
+          publishedAt: new Date().toISOString()
+        };
+      } else {
+        return {
+          success: false,
+          error: inEdit ? '仍在编辑态（/edit），未完成最终发布' : '未进入文章页（/p/{id}），发布不成功',
+          url: currentUrl,
+          title
+        };
       }
-
-      return {
-        success: true,
-        url: publishedUrl,
-        articleId: articleId,
-        title: title,
-        publishedAt: new Date().toISOString()
-      };
-
     } catch (error) {
       this.log('error', `获取发布结果失败: ${error.message}`);
       return {
@@ -1289,6 +1390,8 @@ class ZhihuPublisher {
    */
   async diagnosePublishResult(publishResult) {
     this.log('info', '开始诊断发布结果...');
+    this.log('info', `[ZH_PUB_DBG] diagnosePublishResult entry url=${this.page.url()}`);
+    console.log(`[ZH_PUB_DBG] diagnosePublishResult entry url=${this.page.url()}`);
 
     try {
       // 等待页面稳定

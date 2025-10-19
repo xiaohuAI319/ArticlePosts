@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { Card, Row, Col, Button, message, Input } from 'antd';
-import { PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Button, message, Input, Space } from 'antd';
+import { PlusOutlined, SaveOutlined, SendOutlined } from '@ant-design/icons';
 import TinyMCEEditor from '../Editor/TinyMCEEditor';
 import ArticlePreview from '../Article/ArticlePreview';
+import PublishButton from '../Publish/PublishButton';
 import { createNewArticle, updateCurrentArticle, autoSaveArticle, fetchArticles, setCurrentArticle } from '../../store/slices/articleSlice';
 import './EditorPage.css';
 
@@ -121,6 +122,12 @@ function EditorPage() {
     setShowPreview(!showPreview);
   };
 
+  // 发布完成回调
+  const handlePublishComplete = (task) => {
+    console.log('文章发布完成:', task);
+    message.success('文章发布成功！');
+  };
+
   
   // 全局快捷键处理
   useEffect(() => {
@@ -151,27 +158,33 @@ function EditorPage() {
           </p>
         </div>
         <div className="header-actions">
-          <Button
-            type="default"
-            icon={<PlusOutlined />}
-            onClick={handleNewArticle}
-          >
-            新建文章
-          </Button>
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            onClick={handleSaveArticle}
-            loading={saving}
-          >
-            保存文章
-          </Button>
-          <Button
-            type={showPreview ? 'primary' : 'default'}
-            onClick={togglePreview}
-          >
-            {showPreview ? '编辑模式' : '预览模式'}
-          </Button>
+          <Space>
+            <Button
+              type="default"
+              icon={<PlusOutlined />}
+              onClick={handleNewArticle}
+            >
+              新建文章
+            </Button>
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              onClick={handleSaveArticle}
+              loading={saving}
+            >
+              保存文章
+            </Button>
+            <Button
+              type={showPreview ? 'primary' : 'default'}
+              onClick={togglePreview}
+            >
+              {showPreview ? '编辑模式' : '预览模式'}
+            </Button>
+            <PublishButton
+              articleId={currentArticle?.id}
+              onPublishComplete={handlePublishComplete}
+            />
+          </Space>
         </div>
       </div>
 

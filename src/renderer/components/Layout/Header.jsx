@@ -13,7 +13,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { openModal } from '../../store/slices/appSlice';
 import { saveArticle } from '../../store/slices/articlesSlice';
-// import { publishArticle } from '../../store/slices/publishSlice'; // 暂时注释掉
+import { publishArticle } from '../../store/slices/publishSlice';
 import './Header.css';
 
 const { Header: AntHeader } = Layout;

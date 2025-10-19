@@ -125,57 +125,48 @@ class PublishService {
         console.log(`创建测试文章成功，新ID: ${actualArticleId}`);
       }
 
-      // 获取平台信息验证存在性
+      // 获取平台信息验证存在性（支持字符串slug/name）
       let actualPlatformId = platformId;
       let platformResult;
 
       try {
-        platformResult = await this.dbService.platforms.findById(platformId);
+        // 如果传入的是字符串，则按 slug/name 解析成实际ID
+        if (typeof platformId === 'string') {
+          // 优先按 slug 查询
+          let resolved = null;
+          if (this.dbService.platforms.findBySlug) {
+            try {
+              resolved = await this.dbService.platforms.findBySlug(platformId);
+            } catch (_) { /* 忽略 */ }
+          }
+          if (!resolved || !resolved.success) {
+            // 退回按 name 查询
+            if (this.dbService.platforms.findByName) {
+              try {
+                resolved = await this.dbService.platforms.findByName(platformId);
+              } catch (_) { /* 忽略 */ }
+            }
+          }
+          if (resolved && resolved.success && resolved.data?.id) {
+            actualPlatformId = resolved.data.id;
+            platformResult = resolved;
+          } else {
+            platformResult = { success: false };
+          }
+        }
+
+        // 若前面未解析成功或传的是数字ID，则按ID查询
+        if (!platformResult || !platformResult.success) {
+          platformResult = await this.dbService.platforms.findById(actualPlatformId);
+        }
       } catch (error) {
-        console.warn('获取平台失败，创建测试平台数据:', error.message);
+        console.warn('获取平台失败:', error.message);
         platformResult = { success: false };
       }
 
       if (!platformResult || !platformResult.success) {
-        // 创建测试平台数据
-        const testPlatformData = {
-          name: 'test_platform',
-          display_name: '测试平台',
-          base_url: 'https://test-platform.com',
-          login_url: 'https://test-platform.com/login',
-          publish_url: 'https://test-platform.com/publish',
-          config_schema: JSON.stringify({
-            auth_method: 'test',
-            test_mode: true
-          }),
-          priority: 999,
-          is_active: 1
-        };
-
-        // 使用Platform模型创建测试平台
-        try {
-          const platformModel = this.dbService.getModel('platform');
-          const result = platformModel.create(testPlatformData);
-
-          if (result && result.id) {
-            actualPlatformId = result.id;
-          } else {
-            throw new Error('平台创建失败');
-          }
-          platformResult = {
-            id: actualPlatformId,
-            name: testPlatformData.display_name,
-            display_name: testPlatformData.display_name,
-            type: 'blog',
-            status: 1,
-            config: JSON.parse(testPlatformData.config_schema)
-          };
-
-          console.log(`创建测试平台成功，新ID: ${actualPlatformId}`);
-        } catch (dbError) {
-          console.error('创建测试平台失败:', dbError);
-          throw new Error(`无法创建测试平台: ${dbError.message}`);
-        }
+        // 不再创建测试平台，直接抛出清晰错误
+        throw new Error(`平台不存在或不可用: ${platformId}`);
       }
 
       // 创建发布任务
@@ -308,8 +299,10 @@ class PublishService {
       throw new Error(`任务不存在: ${taskId}`);
     }
 
+    console.log('[ZH_PUB_DBG] PublishService.execute: about to require ZhihuPublisher');
     const ZhihuPublisher = require('../automation/ZhihuPublisher');
     const publisher = new ZhihuPublisher();
+    console.log('[ZH_PUB_DBG] PublishService.execute: publisher instance =', publisher && publisher.constructor && publisher.constructor.name);
 
     try {
       // 获取文章数据
@@ -370,6 +363,7 @@ class PublishService {
    */
   async publishToZhihu(publisher, taskId, articleData, task) {
     try {
+      console.log('[ZH_PUB_DBG] PublishService.publishToZhihu entry taskId=', taskId, 'title=', articleData && articleData.title);
       this.addTaskLog(taskId, LogLevel.INFO, '初始化知乎发布器');
 
       // 初始化发布器

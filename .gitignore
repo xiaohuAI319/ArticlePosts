@@ -89,3 +89,7 @@ target/
 *.bak
 *.backup
 *.old
+
+# 本地工具与外部脚手架（不纳入版本管理）
+blog-auto-publishing-tools/
+/blog-auto-publishing-tools/**

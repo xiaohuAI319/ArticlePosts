@@ -48,11 +48,6 @@ function Sidebar() {
       label: '发布历史'
     },
     {
-      key: 'test',
-      icon: <ExperimentOutlined />,
-      label: '功能测试'
-    },
-    {
       key: 'settings',
       icon: <SettingOutlined />,
       label: '设置'

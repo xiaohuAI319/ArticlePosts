@@ -4,22 +4,32 @@ import { v4 as uuidv4 } from 'uuid';
 // 异步thunk：发布文章到平台
 export const publishArticle = createAsyncThunk(
   'publish/publishArticle',
-  async ({ articleId, platformIds, config }, { rejectWithValue }) => {
+  async ({ articleId, platformIds, config }, { dispatch, rejectWithValue }) => {
     try {
-      const publishTasks = platformIds.map(platformId => ({
-        id: uuidv4(),
+      const taskId = uuidv4();
+      const task = {
+        id: taskId,
         articleId,
-        platformId,
+        platformIds, // 支持多平台
         config,
         status: 'pending',
         progress: 0,
-        createdAt: Date.now()
-      }));
+        logs: [],
+        createdAt: new Date().toISOString()
+      };
 
-      // TODO: 调用主进程API开始发布流程
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 立即在UI上显示任务
+      dispatch(publishSlice.actions.addTask(task));
+      dispatch(publishSlice.actions.setCurrentTask(task));
 
-      return publishTasks;
+      // 调用主进程API开始发布流程（使用 articles:publish）
+      const result = await window.electronAPI.articles.publish(articleId, platformIds);
+
+      if (result.success) {
+        return result.data; // 返回主进程处理后的任务对象
+      } else {
+        throw new Error(result.error);
+      }
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -106,6 +116,12 @@ const publishSlice = createSlice({
   name: 'publish',
   initialState,
   reducers: {
+    // 添加一个新任务
+    addTask: (state, action) => {
+      state.tasks.unshift(action.payload); // 添加到数组开头
+      state.stats.total++;
+      state.stats.pending++;
+    },
     // 设置当前任务
     setCurrentTask: (state, action) => {
       state.currentTask = action.payload;
@@ -211,13 +227,13 @@ const publishSlice = createSlice({
       })
       .addCase(publishArticle.fulfilled, (state, action) => {
         state.loading = false;
-        state.tasks.push(...action.payload);
-        state.currentTask = action.payload[0];
-        state.error = null;
-
-        // 重新计算统计信息
-        state.stats.total = state.tasks.length;
-        state.stats.pending += action.payload.length;
+        // 主进程返回了任务的最终状态，这里我们更新它
+        const taskIndex = state.tasks.findIndex(t => t.id === action.payload.id);
+        if (taskIndex !== -1) {
+          state.tasks[taskIndex] = action.payload;
+        }
+        state.publishing = false;
+        state.currentTask = action.payload; // 显示最终结果
       })
       .addCase(publishArticle.rejected, (state, action) => {
         state.loading = false;
@@ -293,6 +309,7 @@ const publishSlice = createSlice({
 });
 
 export const {
+  addTask,
   setCurrentTask,
   clearCurrentTask,
   updateTaskProgress,

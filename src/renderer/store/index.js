@@ -8,6 +8,7 @@ import appSlice from './slices/appSlice';
 import articleSlice from './slices/articleSlice';
 import platformSlice from './slices/platformSlice';
 import authSlice from './slices/authSlice';
+import publishSlice from './slices/publishSlice';
 
 // 持久化配置
 const persistConfig = {
@@ -22,6 +23,7 @@ const rootReducer = combineReducers({
   articles: articleSlice,
   platforms: platformSlice,
   auth: authSlice,
+  publish: publishSlice,
 });
 
 // 创建持久化reducer
