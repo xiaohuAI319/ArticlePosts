@@ -27,11 +27,11 @@ const TINYMCE_CONFIG = {
   relative_urls: false, // 禁用相对URL
   remove_script_host: true, // 移除脚本主机
   convert_urls: false, // 禁用URL转换
-  // 完全禁用TinyMCE的网络功能
-  language_url: null, // 禁用语言包下载
-  theme_url: null, // 禁用主题下载
-  icons_url: null, // 禁用图标下载
-  plugins_url: null, // 禁用插件下载
+  // 使用本地资源
+  language: 'zh_CN',
+  language_url: '/tinymce/langs/zh_CN.js',
+  skin_url: '/tinymce/skins/ui/oxide',
+  content_css: '/tinymce/skins/content/default/content.css',
   content_css_cors: false, // 禁用外部CSS加载
   importcss_append: false, // 禁用CSS导入
   importcss_prepend: false,
@@ -525,7 +525,11 @@ function TinyMCEEditor({ initialContent = '', placeholder = '开始编写你的�
             <Editor
               apiKey={tinyMCEApiKey} // 从配置动态加载API key
               value={content}
-              init={TINYMCE_CONFIG}
+              init={{
+                ...TINYMCE_CONFIG,
+                base_url: '/tinymce',
+                suffix: '.min'
+              }}
               onInit={handleEditorInit}
               onEditorChange={handleEditorChange}
             />
