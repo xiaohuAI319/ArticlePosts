@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Ziliu Publisher (Dev)",
+  "version": "0.1.0",
+  "description": "从自有网页接收任务，在知乎写作页内自动填充标题/正文，并可选自动发布（开发者模式）。",
+  "permissions": [],
+  "host_permissions": [
+    "https://zhuanlan.zhihu.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://zhuanlan.zhihu.com/*",
+        "https://*.zhihu.com/*"
+      ],
+      "js": ["content-zhihu.js"],
+      "all_frames": true,
+      "match_about_blank": true,
+      "run_at": "document_start"
+    }
+  ]
+}

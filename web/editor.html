@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>文章编辑 - 一键发布到知乎</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- TinyMCE CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/tinymce@6.8.3/tinymce.min.js" referrerpolicy="origin"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Hiragino Sans GB"; margin: 0; padding: 16px; background: #f7f8fa; }
+    .container { max-width: 960px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 16px; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .title { width: 100%; box-sizing: border-box; font-size: 18px; padding: 10px 12px; border: 1px solid #e5e6eb; border-radius: 8px; outline: none; }
+    .title:focus { border-color: #1677ff; box-shadow: 0 0 0 3px rgba(22,119,255,0.15); }
+    .actions { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+    button.primary { background: #1677ff; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; cursor: pointer; }
+    button.primary:hover { background: #1468db; }
+    .hint { color: #86909c; font-size: 13px; }
+    .badge { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #f2f3f5; color: #4e5969; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2 style="margin: 8px 0 16px 0;">文章编辑 <span class="badge">TinyMCE</span></h2>
+    <div class="card">
+      <input id="titleInput" class="title" placeholder="请输入标题" />
+      <textarea id="editor"></textarea>
+      <div class="actions">
+        <label><input type="checkbox" id="autoPublish" checked /> 自动发布</label>
+        <button class="primary" id="publishBtn">一键发布到知乎</button>
+        <span class="hint">提示：首次使用需在浏览器开启"开发者模式"，加载扩展后再点击发布。</span>
+      </div>
+    </div>
+  </div>
+</body>
+
+  <script>
+    // 初始化 TinyMCE
+    tinymce.init({
+      selector: '#editor',
+      height: 280,
+      menubar: false,
+      language: 'zh_CN',
+      plugins: 'lists link image table code autoresize',
+      toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link image table | code',
+      automatic_uploads: false,
+      paste_data_images: true,
+      convert_urls: false,
+      content_style: 'body { line-height: 1.7; font-size: 16px; }'
+    });
+
+    function getHtml() {
+      const ed = tinymce.get('editor');
+      return ed ? ed.getContent({ format: 'html' }) : '';
+    }
+
+    function publishToZhihu() {
+      const title = document.getElementById('titleInput').value.trim();
+      const autoPublish = document.getElementById('autoPublish').checked;
+      const html = getHtml();
+
+      if (!title) {
+        alert('请先填写标题');
+        return;
+      }
+      if (!html) {
+        if (!confirm('正文为空，是否继续只发布标题？')) return;
+      }
+
+      // 打开知乎写作页（带锚点以便扩展感知）
+      console.log('[Editor] 正在打开知乎写作页...');
+      const target = window.open('https://zhuanlan.zhihu.com/write#ziliu', '_blank');
+      console.log('[Editor] 知乎页面已打开:', target);
+
+      // 立即发送简单字符串握手
+      setTimeout(() => {
+        if (target) {
+          console.log('[Editor] 发送简单字符串握手请求');
+          target.postMessage('ZILIU_PUBLISH_REQUEST', '*');
+        }
+      }, 1000);
+
+      // 任务对象
+      const task = {
+        type: 'ZILIU_TASK',
+        platform: 'zhihu',
+        autoPublish,
+        payload: { title, content: html }
+      };
+
+      // 监听扩展回传和握手
+      let handshakeReceived = false;
+      const onMessage = (e) => {
+        console.log('[Editor] 收到消息:', e.data, '来源:', e.origin);
+
+        // 处理握手消息 - 改为对象格式
+        if (e.data?.type === 'ZILIU_READY' && e.data.platform === 'zhihu') {
+          console.log('[Editor] 收到Chrome扩展握手响应');
+          handshakeReceived = true;
+
+          // 握手后立即发送任务
+          setTimeout(() => {
+            if (target && handshakeReceived) {
+              console.log('[Editor] 握手完成，发送任务到知乎页面:', task);
+              console.log('[Editor] 目标窗口:', target);
+              // 移除跨域访问location的代码，避免安全错误
+
+              try {
+                target.postMessage(task, '*');
+                console.log('[Editor] postMessage调用成功');
+              } catch (error) {
+                console.error('[Editor] postMessage调用失败:', error);
+              }
+            }
+          }, 500);
+          return;
+        }
+
+        // 处理任务结果
+        if (e.data?.type !== 'ZILIU_TASK_RESULT') return;
+
+        // 检查消息是否来自知乎页面
+        if (e.source !== target) {
+          console.warn('[Editor] 消息来源不匹配，忽略:', e.source, target);
+          return;
+        }
+
+        console.log('[Editor] 收到任务结果:', e.data);
+        window.removeEventListener('message', onMessage);
+        const { status, url, error } = e.data;
+        if (status === 'success') {
+          alert('发布成功：' + (url || ''));
+        } else {
+          alert('发布失败：' + (error || '未知错误'));
+        }
+      };
+      window.addEventListener('message', onMessage);
+
+      // 备用发送：如果握手失败，延迟发送
+      setTimeout(() => {
+        if (!handshakeReceived && target) {
+          console.log('[Editor] 握手超时，重试发送握手请求');
+          target.postMessage('ZILIU_PUBLISH_REQUEST', '*');
+        }
+      }, 3000);
+
+      // 30 秒超时兜底
+      setTimeout(() => {
+        try { window.removeEventListener('message', onMessage); } catch (_) {}
+        // 提示用户检查是否安装扩展
+        alert('未收到扩展响应。请确认：\n1) 已在 chrome://extensions 启用开发者模式并加载扩展\n2) 重试“ 一键发布到知乎 ”');
+      }, 30000);
+    }
+
+    document.getElementById('publishBtn').addEventListener('click', publishToZhihu);
+  </script>
+</body>
+</html>

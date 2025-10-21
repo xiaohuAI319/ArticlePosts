@@ -1,0 +1,8 @@
+{
+  "pages\\editor.tsx -> @tinymce/tinymce-react": {
+    "id": "pages\\editor.tsx -> @tinymce/tinymce-react",
+    "files": [
+      "static/chunks/node_modules_tinymce_tinymce-react_lib_es2015_main_ts_index_js.js"
+    ]
+  }
+}
